@@ -1,0 +1,42 @@
+
+#if 0
+    void* resize_list(void* list, size_t unit_size, uint32_t old_len, uint32_t new_len)
+    {
+        if (new_len == 0)
+        {
+            if (old_len != 0)
+                delete[] (char*)list;
+
+            return NULL;
+        }
+
+        void* new_buf = new char[new_len * unit_size];
+        if (old_len != 0)
+        {
+            memcpy(new_buf, list, old_len * unit_size);
+            delete[] (char*)list;
+        }
+
+        return new_buf;
+    }
+
+    void inventory_resize(Inventory& inv)
+    {
+        auto old_cap = inv.capacity;
+        inv.capacity = grow(old_cap);
+        inv.items = (InventoryItem*)resize_list(nullptr, sizeof(InventoryItem), old_cap, inv.capacity);
+    }
+
+    void inventory_init(Inventory& inv)
+    {
+        inv.count = 0;
+        inv.capacity = 0;
+        inventory_resize(inv);
+    }
+
+    void inventory_deinit(Inventory& inv)
+    {
+        resize_list(inv.items, sizeof(InventoryItem), inv.capacity, 0);
+    }
+#endif
+
