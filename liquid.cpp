@@ -1,10 +1,12 @@
 #include <iostream>
 #include <sstream>
+#include <fstream>
 #include <string>
 #include <cstring>
 #include <limits>
 #include <iomanip>
 #include <cstdint>
+#include <cctype>
 #include <type_traits>
 
 using namespace std;
@@ -16,9 +18,11 @@ enum ItemCategory
     IC_ACCESSORY,
 };
 
+static constexpr size_t MAX_NAME_LEN = 50;
+
 struct Member
 {
-    char name[50];
+    char name[MAX_NAME_LEN];
     int borrow_count = 0;
 
     Member* prev = nullptr;
@@ -29,7 +33,7 @@ typedef uint16_t item_id_t;
 
 struct ItemMeta
 {
-    char name[50];
+    char name[MAX_NAME_LEN];
     ItemCategory cat;
 };
 
@@ -75,17 +79,22 @@ inline void DeleteMember(Member* m)
     delete m;
 }
 
-InventoryItem* InvUtil_FindItemById(Inventory& inv, item_id_t id, bool active_only = true)
-{
-    for (int i = 0; i < inv.count; ++i)
-    {
-        auto& item = inv.items[i];
-        if (item.item_id == id && (!active_only || item.active))
-            return &item;
-    }
+InventoryItem* InvUtil_FindItemById(Inventory& inv, item_id_t id, bool active_only = true);
+void InitInventory(Inventory* inv);
+void FreeInventory(Inventory* inv);
 
-    return nullptr;
+inline void Welcome()
+{
+    cout << "* Welcome to PUCIT Inventory Management System *\n" << endl;
 }
+void LoadFromFile(Inventory& inv);
+void OnBeforeQuit(Inventory& inv);
+
+namespace Input
+{
+    int64_t integer();
+    void entity_name();
+};
 
 namespace InvUserActions
 {
@@ -100,7 +109,8 @@ namespace InvUserActions
         Ok,
     };
 
-    InvResult AddItem(Inventory& inv, item_id_t id, ItemMeta&& meta);
+    // InvResult AddItem(Inventory& inv, item_id_t id, ItemMeta&& meta);
+    InvResult AddItem(Inventory& inv, item_id_t id, const ItemMeta& meta);
     InvResult ViewItems(Inventory& inv);
     InvResult SearchItem(Inventory& inv, const std::string& str);
     InvResult EditItem(Inventory& inv, item_id_t id, ItemMeta&& item);
@@ -127,66 +137,75 @@ namespace Frontend
         ItemDetails,
     };
 
-    int IntegerInput();
     Action RequestAction();
+
+    void HandleAction(Inventory& inv, Action action);
+
 }; // namespace Frontend
 
 int main()
 {
     std::ios::sync_with_stdio(false);
 
+    Welcome();
+
     Inventory inv;
+    InitInventory(&inv);
 
-    inv.count = 0;
-    inv.capacity = 1 << 7;
-    inv.items = new InventoryItem[inv.capacity];
+    bool first_tick = true;
 
-    // auto val = Frontend::IntegerInput();
+    for (;;)
+    {
+        if (!first_tick)
+        {
+            cout << "----------------------------";
+            cout << "\n\n";
+        }
 
-    // cout << "Val=" << val << endl;
+        first_tick = false;
 
-    auto action = Frontend::RequestAction();
+        auto action = Frontend::RequestAction();
 
-    // InvUserActions::AddItem(inv, 1, { "Heheh 1", IC_ACCESSORY });
-    // InvUserActions::AddItem(inv, 2, { "Heheh 2", IC_ACCESSORY });
-    // InvUserActions::AddItem(inv, 3, { "Heheh 3", IC_ACCESSORY });
-    // InvUserActions::AddItem(inv, 4, { "Heheh 4", IC_ACCESSORY });
-    // InvUserActions::AddItem(inv, 5, { "Heheh 5", IC_ACCESSORY });
-    // InvUserActions::AddItem(inv, 6, { "Heheh 6", IC_ACCESSORY });
-    // InvUserActions::AddItem(inv, 7, { "Heheh 7", IC_ACCESSORY });
-    // InvUserActions::AddItem(inv, 8, { "Heheh 8", IC_ACCESSORY });
-    // InvUserActions::AddItem(inv, 9, { "Heheh 9", IC_ACCESSORY });
-    // InvUserActions::AddItem(inv, 10, { "Heheh 10", IC_ACCESSORY });
-    // InvUserActions::AddItem(inv, 11, { "Heheh 11", IC_ACCESSORY });
-    // InvUserActions::AddItem(inv, 12, { "Heheh 12", IC_ACCESSORY });
+        if (action == Frontend::Action::Quit)
+        {
+            break;
+        }
 
-    // InvUserActions::DeleteItem(inv, 5);
-    // InvUserActions::SearchItem(inv, "Heheh 7");
+        Frontend::HandleAction(inv, action);
+    }
+
+    OnBeforeQuit(inv);
+    FreeInventory(&inv);
+
+    return 0;
 }
 
-namespace Frontend
+void InitInventory(Inventory* inv)
 {
-    static const char* menu_ = 1 + (const char*)R"(
-Select an option:
-    [0] Quit 
-    [1] Add a New tem
-    [2] View Added Items
-    [3] Search Item By Name
-    [4] Edit an Existing Item
-    [5] Delete an Existing Item
-    [6] Assign an Existing Item to a Member
-    [7] Retrieve an Existing Item from a Member
-    [8] Show Details of a Specifc Item
-)";
+    inv->count = 0;
+    inv->capacity = 256;
+    inv->items = new InventoryItem[inv->capacity];
+}
 
-    constexpr streamsize max_ssz = std::numeric_limits<streamsize>::max(); 
+void FreeInventory(Inventory* inv)
+{
+    /* TODO: free nested member lists */
+    delete inv->items;
+}
 
-    int IntegerInput()
+void LoadFromFile(Inventory& inv) {}
+void OnBeforeQuit(Inventory& inv) {}
+
+namespace Input
+{
+    constexpr streamsize max_ssz = std::numeric_limits<streamsize>::max();
+
+    int64_t integer()
     {
         static const auto MAX_LINE_SIZE = 1024;
         static char line[MAX_LINE_SIZE];
         std::stringstream ss;
-        
+
         std::cin.getline(line, MAX_LINE_SIZE, '\n');
 
         ss << line;
@@ -203,12 +222,54 @@ Select an option:
             if (ss.eof())
                 break;
 
-            if (c != ' ')
+            if (!std::isspace(c))
                 return -1;
         }
 
-        return val;
+        return val < 0 ? -1 : val;
     }
+
+    bool entity_name(char* target, size_t max_len)
+    {
+        static const auto MAX_LINE_SIZE = 1024;
+        static char name[MAX_LINE_SIZE];
+        cin >> ws;
+        std::cin.getline(name, MAX_LINE_SIZE, '\n');
+
+        auto xc = std::cin.gcount() - 1; 
+
+        if (std::cin.eof())
+            return false;
+
+        if (std::cin.fail() || xc >= max_len)
+        {
+            cout << "[ERROR] Enter a name of less than " << MAX_NAME_LEN 
+                << "characters\n";
+
+            return false;
+        }
+
+        memcpy(target, name, xc + 1);
+
+        return true;
+    }
+};
+
+namespace Frontend
+{
+    static const char* menu_ = 1 + (const char*) R"(
+Select an option:
+    [0] Quit 
+    [1] Add a New tem
+    [2] View Added Items
+    [3] Search Item By Name
+    [4] Edit an Existing Item
+    [5] Delete an Existing Item
+    [6] Assign an Existing Item to a Member
+    [7] Retrieve an Existing Item from a Member
+    [8] Show Details of a Specifc Item
+)";
+
 
     Action RequestAction()
     {
@@ -218,10 +279,10 @@ Select an option:
 
         while (true)
         {
-            cout << ">> Choose option [0-8]: ";
+            cout << "> Choose option [0-8]: ";
 
             bool valid = false;
-            op = IntegerInput();
+            op = Input::integer();
 
             if (cin.eof())
                 return Action::Quit;
@@ -237,11 +298,67 @@ Select an option:
 
         return static_cast<Action>(op);
     }
+
+    void HandleAction(Inventory& inv, Action action)
+    {
+
+        cout << "\n";
+
+
+        static const char* IDN = " >> ";
+
+        do
+        {
+            item_id_t id;
+            ItemMeta meta;
+
+            cout << IDN << "Enter Item Id: " ;
+            auto id_ = Input::integer();
+
+            if (id_ == -1)
+            {
+                cout << "[ERROR] Invalid id" << '\n';
+                break;
+            }
+
+            id = id_;
+
+            cout << IDN << "Enter Item name: ";
+            if (!Input::entity_name(meta.name, MAX_NAME_LEN))
+                break;
+
+            meta.cat = IC_MACHINERY;
+
+            auto result = InvUserActions::AddItem(inv, id, meta);
+            // auto result = InvUserActions::InvResult::Ok;
+
+            switch (result) {
+                case InvUserActions::InvResult::Ok:
+                    cout << "\nItem \"" << meta.name << "\" added successfully\n";
+                    break;
+
+                case InvUserActions::InvResult::ErrDuplicateEntry:
+                    cout    << "[ERROR] Item with id " << id << " already exists\n"
+                            << "        Failed to add item\n";
+                    break;
+
+                default:
+                    break;
+            }
+
+        } while (false);
+
+
+        cout << endl;
+
+        return;
+    }
+
 } // namespace Frontend
 
 namespace InvUserActions
 {
-    InvResult AddItem(Inventory& inv, item_id_t id, ItemMeta&& meta)
+    InvResult AddItem(Inventory& inv, item_id_t id, const ItemMeta& meta)
     {
         if (InvUtil_FindItemById(inv, id) != nullptr)
             return InvResult::ErrDuplicateEntry;
@@ -424,3 +541,15 @@ namespace InvUserActions
         return InvResult::Ok;
     }
 }; // namespace InvUserActions
+
+InventoryItem* InvUtil_FindItemById(Inventory& inv, item_id_t id, bool active_only)
+{
+    for (int i = 0; i < inv.count; ++i)
+    {
+        auto& item = inv.items[i];
+        if (item.item_id == id && (!active_only || item.active))
+            return &item;
+    }
+
+    return nullptr;
+}
