@@ -1,7 +1,9 @@
 #include <iostream>
+#include <sstream>
 #include <string>
-#include <limits>
 #include <cstring>
+#include <limits>
+#include <iomanip>
 #include <cstdint>
 #include <type_traits>
 
@@ -125,16 +127,23 @@ namespace Frontend
         ItemDetails,
     };
 
+    int IntegerInput();
     Action RequestAction();
 }; // namespace Frontend
 
 int main()
 {
+    std::ios::sync_with_stdio(false);
+
     Inventory inv;
 
     inv.count = 0;
     inv.capacity = 1 << 7;
     inv.items = new InventoryItem[inv.capacity];
+
+    // auto val = Frontend::IntegerInput();
+
+    // cout << "Val=" << val << endl;
 
     auto action = Frontend::RequestAction();
 
@@ -172,6 +181,35 @@ Select an option:
 
     constexpr streamsize max_ssz = std::numeric_limits<streamsize>::max(); 
 
+    int IntegerInput()
+    {
+        static const auto MAX_LINE_SIZE = 1024;
+        static char line[MAX_LINE_SIZE];
+        std::stringstream ss;
+        
+        std::cin.getline(line, MAX_LINE_SIZE, '\n');
+
+        ss << line;
+
+        int val;
+        ss >> std::skipws >> val;
+
+        if (ss.fail())
+            return -1;
+
+        while (true)
+        {
+            char c = ss.get();
+            if (ss.eof())
+                break;
+
+            if (c != ' ')
+                return -1;
+        }
+
+        return val;
+    }
+
     Action RequestAction()
     {
         cout << menu_ << endl;
@@ -181,17 +219,15 @@ Select an option:
         while (true)
         {
             cout << ">> Choose option [0-8]: ";
+
             bool valid = false;
-            if (cin >> op)
-            {
-                if (op >= 0 && op <= 8)
-                    valid = true;
-            }
-            else
-            {
-                std::cin.clear();
-                std::cin.ignore(max_ssz, '\n');
-            }
+            op = IntegerInput();
+
+            if (cin.eof())
+                return Action::Quit;
+
+            if (op >= 0 && op <= 8)
+                valid = true;
 
             if (valid)
                 break;
