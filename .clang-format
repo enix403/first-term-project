@@ -74,7 +74,7 @@ AlwaysBreakTemplateDeclarations: Yes
 # AllowAllArgumentsOnNextLine: Default Value
 # AllowAllParametersOfDeclarationOnNextLine: Default Value
 AllowShortBlocksOnASingleLine: Always
-AllowShortCaseLabelsOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: false
 AllowShortEnumsOnASingleLine: true
 AllowShortFunctionsOnASingleLine: Inline
 AllowShortIfStatementsOnASingleLine: false

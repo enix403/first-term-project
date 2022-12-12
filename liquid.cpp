@@ -94,7 +94,7 @@ namespace Input
 {
     int64_t integer();
     void entity_name();
-};
+}; // namespace Input
 
 namespace InvUserActions
 {
@@ -137,8 +137,12 @@ namespace Frontend
         ItemDetails,
     };
 
-    Action RequestAction();
+    inline void DisplayItem(InventoryItem& item)
+    {
+        cout << item.item_id << " | " << item.meta.name << endl;   
+    }
 
+    Action RequestAction();
     void HandleAction(Inventory& inv, Action action);
 
 }; // namespace Frontend
@@ -236,15 +240,14 @@ namespace Input
         cin >> ws;
         std::cin.getline(name, MAX_LINE_SIZE, '\n');
 
-        auto xc = std::cin.gcount() - 1; 
+        auto xc = std::cin.gcount() - 1;
 
         if (std::cin.eof())
             return false;
 
         if (std::cin.fail() || xc >= max_len)
         {
-            cout << "[ERROR] Enter a name of less than " << MAX_NAME_LEN 
-                << "characters\n";
+            cout << "[ERROR] Enter a name of less than " << MAX_NAME_LEN << "characters\n";
 
             return false;
         }
@@ -253,7 +256,7 @@ namespace Input
 
         return true;
     }
-};
+}; // namespace Input
 
 namespace Frontend
 {
@@ -301,57 +304,57 @@ Select an option:
 
     void HandleAction(Inventory& inv, Action action)
     {
-
         cout << "\n";
-
 
         static const char* IDN = " >> ";
 
-        do
+        switch (action)
         {
-            item_id_t id;
-            ItemMeta meta;
+            case Action::AddItem: {
+                item_id_t id;
+                ItemMeta meta;
 
-            cout << IDN << "Enter Item Id: " ;
-            auto id_ = Input::integer();
+                cout << IDN << "Enter Item Id: ";
+                auto id_ = Input::integer();
 
-            if (id_ == -1)
-            {
-                cout << "[ERROR] Invalid id" << '\n';
+                if (id_ == -1)
+                {
+                    cout << "[ERROR] Invalid id" << '\n';
+                    break;
+                }
+
+                id = id_;
+
+                cout << IDN << "Enter Item name: ";
+                if (!Input::entity_name(meta.name, MAX_NAME_LEN))
+                    break;
+
+                meta.cat = IC_MACHINERY;
+
+                InvUserActions::AddItem(inv, id, meta);
+
                 break;
             }
 
-            id = id_;
-
-            cout << IDN << "Enter Item name: ";
-            if (!Input::entity_name(meta.name, MAX_NAME_LEN))
+            case Action::ViewItems:
+                InvUserActions::ViewItems(inv);
                 break;
 
-            meta.cat = IC_MACHINERY;
+            case Action::SearchItem: {
+                cout << IDN << "Enter Item Name: "; 
+                string line;
+                getline(std::cin >> std::ws, line);
 
-            auto result = InvUserActions::AddItem(inv, id, meta);
-            // auto result = InvUserActions::InvResult::Ok;
+                InvUserActions::SearchItem(inv, line);
 
-            switch (result) {
-                case InvUserActions::InvResult::Ok:
-                    cout << "\nItem \"" << meta.name << "\" added successfully\n";
-                    break;
-
-                case InvUserActions::InvResult::ErrDuplicateEntry:
-                    cout    << "[ERROR] Item with id " << id << " already exists\n"
-                            << "        Failed to add item\n";
-                    break;
-
-                default:
-                    break;
+                break;
             }
 
-        } while (false);
-
+            default:
+                break;
+        }
 
         cout << endl;
-
-        return;
     }
 
 } // namespace Frontend
@@ -361,7 +364,12 @@ namespace InvUserActions
     InvResult AddItem(Inventory& inv, item_id_t id, const ItemMeta& meta)
     {
         if (InvUtil_FindItemById(inv, id) != nullptr)
+        {
+            cout << "[ERROR] Item with id " << id << " already exists\n"
+                 << "        Failed to add item\n";
+
             return InvResult::ErrDuplicateEntry;
+        }
 
         if (inv.count == inv.capacity)
         {
@@ -389,19 +397,21 @@ namespace InvUserActions
         slot.item_count = 0;
         slot.allocated_to = nullptr;
 
+        cout << "\nItem \"" << meta.name << "\" added successfully\n";
+
         return InvResult::Ok;
     }
 
     InvResult ViewItems(Inventory& inv)
     {
         if (inv.count == 0)
-            return InvResult::WarnEmpty;
+        {
+            cout << "*No items added*\n";
+            return InvResult::Ok;
+        }
 
         for (int i = 0; i < inv.count; ++i)
-        {
-            auto& item = inv.items[i];
-            cout << "ViewItems(): " << item.meta.name << endl;
-        }
+            Frontend::DisplayItem(inv.items[i]);
 
         return InvResult::Ok;
     }
@@ -415,13 +425,14 @@ namespace InvUserActions
             if (item.active && item.meta.name == str)
             {
                 ++count;
-                /* output */
-                cout << "SearchItem(): " << item.meta.name << endl;
+                Frontend::DisplayItem(inv.items[i]);
             }
         }
 
         if (count == 0)
-            return InvResult::WarnEmpty;
+        {
+            cout << "*No items found*\n";
+        }
 
         return InvResult::Ok;
     }
@@ -439,7 +450,6 @@ namespace InvUserActions
 
         return InvResult::Ok;
     }
-
 
     InvResult DeleteItem(Inventory& inv, item_id_t id)
     {
