@@ -18,7 +18,6 @@ enum class K__Result
     Unrecoverable
 };
 
-
 enum ItemCategory
 {
     IC_STATIONARY,
@@ -122,7 +121,7 @@ namespace InvUserActions
     K__Result AddItem(Inventory& inv);
     K__Result ViewItems(Inventory& inv);
     K__Result SearchItem(Inventory& inv);
-    // InvResult EditItem(Inventory& inv, item_id_t id, ItemMeta&& item);
+    K__Result EditItem(Inventory& inv);
     K__Result DeleteItem(Inventory& inv);
     // InvResult AssignItem(Inventory& inv, item_id_t id, const std::string& to);
     // InvResult RetrieveItem(Inventory& inv, item_id_t id, const std::string& from);
@@ -164,6 +163,17 @@ int main()
 
     Inventory inv;
     InitInventory(&inv);
+
+#if 1
+    // clang-format off
+    inv.items[inv.count++] = { 1, { "Item 1", IC_MACHINERY } };
+    inv.items[inv.count++] = { 2, { "Item 2", IC_MACHINERY } };
+    inv.items[inv.count++] = { 3, { "Item 3", IC_MACHINERY } };
+    inv.items[inv.count++] = { 4, { "Item 4", IC_MACHINERY } };
+    inv.items[inv.count++] = { 5, { "Item 5", IC_MACHINERY } };
+    inv.items[inv.count++] = { 6, { "Item 6", IC_MACHINERY } };
+    // clang-format on
+#endif
 
     bool first_tick = true;
 
@@ -256,7 +266,7 @@ namespace Input
 
         if (std::cin.fail() || xc >= max_len)
         {
-            cout << "[ERROR] Enter a name of less than " << MAX_NAME_LEN << "characters\n";
+            cout << "[ERROR] * Enter a name of less than " << MAX_NAME_LEN << "characters *\n";
 
             return false;
         }
@@ -282,8 +292,8 @@ namespace Input
         {
             cout << "\n[ERROR] * Item with id " << id_ << " not found *\n"
                  <<   "        * Failed to load item *\n";
-
         }
+
         return itemptr;
     }
 
@@ -303,7 +313,6 @@ Select an option:
     [7] Retrieve an Existing Item from a Member
     [8] Show Details of a Specifc Item
 )";
-
 
     Action RequestAction()
     {
@@ -342,8 +351,9 @@ Select an option:
             case Action::AddItem:       InvUserActions::AddItem(inv);       break;
             case Action::ViewItems:     InvUserActions::ViewItems(inv);     break;
             case Action::SearchItem:    InvUserActions::SearchItem(inv);    break;
+            case Action::EditItem:      InvUserActions::EditItem(inv);      break;
             case Action::DeleteItem:    InvUserActions::DeleteItem(inv);    break;
-            case Action::ItemDetails:   InvUserActions::ItemDetails(inv);    break;
+            case Action::ItemDetails:   InvUserActions::ItemDetails(inv);   break;
 
             default:
                 break;
@@ -363,24 +373,26 @@ namespace InvUserActions
         item_id_t id;
         ItemMeta meta;
 
-        cout << IDN << "Enter Item Id: ";
-        auto existing_item = Input::identitfied_item(inv, false);
-        // auto id_ = Input::integer();
-
-        // if (id_ == -1)
-        // {
-        //     cout << "[ERROR] Invalid id" << '\n';
-        //     return K__Result::Failed;
-        // }
-
-        // id = id_;
-
-        if (existing_item != nullptr)
         {
-            cout << "[ERROR] Item with id " << id << " already exists\n"
-                 << "        Failed to add item\n";
+            cout << IDN << "Enter Item Id: ";
+            auto id_ = Input::integer();
 
-            return K__Result::Failed;
+            if (id_ == -1)
+            {
+                cout << "\n[ERROR] * Invalid id *" << '\n';
+                return K__Result::Failed;
+            }
+
+            id = id_;
+
+            if (InvUtil_FindItemById(inv, id) != nullptr)
+            {
+                cout << "\n[ERROR] * Item with id " << id << " already exists. *\n"
+                     <<   "        * Failed to add item *\n";
+
+                return K__Result::Failed;
+            }
+
         }
 
         cout << IDN << "Enter Item name: ";
@@ -388,6 +400,8 @@ namespace InvUserActions
             return K__Result::Failed;
 
         meta.cat = IC_MACHINERY;
+
+        cout << "\n";
 
         if (inv.count == inv.capacity)
         {
@@ -440,6 +454,8 @@ namespace InvUserActions
         string str;
         getline(std::cin >> std::ws, str);
 
+        cout << "\n";
+
         int count;
         for (int i = 0; i < inv.count; ++i)
         {
@@ -459,32 +475,42 @@ namespace InvUserActions
         return K__Result::Ok;
     }
 
-#if 0
-    InvResult EditItem(Inventory& inv, item_id_t id, ItemMeta&& meta)
+    K__Result EditItem(Inventory& inv)
     {
-        auto item = InvUtil_FindItemById(inv, id);
-
-        if (item == nullptr)
-            return InvResult::ErrNotFound;
-
-        // item->meta.name = std::move(meta.name);
-        strcpy(item->meta.name, meta.name);
-        item->meta.cat = meta.cat;
-
-        return InvResult::Ok;
-    }
-#endif
-
-    K__Result DeleteItem(Inventory& inv)
-    {
-        // auto item = InvUtil_FindItemById(inv, id);
         cout << IDN << "Enter Item Id: ";
         auto item = Input::identitfied_item(inv);
 
         if (item == nullptr)
             return K__Result::Failed;
 
+        cout << IDN << "Enter Item's new name: ";
+        if (!Input::entity_name(item->meta.name, MAX_NAME_LEN))
+            return K__Result::Failed;
+
+        cout << "\n";
+
+        item->meta.cat = IC_MACHINERY; // Edited
+
+        cout << "Item saved successfully\n";
+
+        return K__Result::Ok;
+    }
+
+    K__Result DeleteItem(Inventory& inv)
+    {
+        cout << IDN << "Enter Item Id: ";
+        auto item = Input::identitfied_item(inv);
+
+        if (item == nullptr)
+            return K__Result::Failed;
+
+        cout << "\n";
+
         item->active = false;
+
+        cout << "Item \"" << item->meta.name
+            << "\" with id " << item->item_id
+            << " deleted successfully\n";
 
         return K__Result::Ok;
     }
@@ -570,14 +596,15 @@ namespace InvUserActions
 
     K__Result ItemDetails(Inventory& inv)
     {
-        // auto item = InvUtil_FindItemById(inv, id);
         cout << IDN << "Enter Item Id: ";
         auto item = Input::identitfied_item(inv);
 
         if (item == nullptr)
             return K__Result::Failed;
 
-        cout << "ItemDetails(): " << item->item_id << " | " << item->meta.name << endl;
+        cout << "\n";
+
+        Frontend::DisplayItem(*item);
 
         return K__Result::Ok;
     }
