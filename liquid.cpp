@@ -11,6 +11,14 @@
 
 using namespace std;
 
+enum class K__Result
+{
+    Ok = 0,
+    Failed,
+    Unrecoverable
+};
+
+
 enum ItemCategory
 {
     IC_STATIONARY,
@@ -47,8 +55,8 @@ struct InventoryItem
 };
 
 
-// auto dwajdaw3 = std::is_trivially_copyable<InventoryItem>::value;
-// auto dwajdaw = sizeof(InventoryItem);
+// auto __trival = std::is_trivially_copyable<InventoryItem>::value;
+// auto __sz = sizeof(InventoryItem);
 
 struct Inventory
 {
@@ -79,7 +87,7 @@ inline void DeleteMember(Member* m)
     delete m;
 }
 
-InventoryItem* InvUtil_FindItemById(Inventory& inv, item_id_t id, bool active_only = true);
+InventoryItem* InvUtil_FindItemById(const Inventory& inv, item_id_t id, bool active_only = true);
 void InitInventory(Inventory* inv);
 void FreeInventory(Inventory* inv);
 
@@ -94,6 +102,7 @@ namespace Input
 {
     int64_t integer();
     void entity_name();
+    InventoryItem* identitfied_item(const Inventory& inv, bool show_error = true);
 }; // namespace Input
 
 namespace InvUserActions
@@ -109,15 +118,15 @@ namespace InvUserActions
         Ok,
     };
 
-    // InvResult AddItem(Inventory& inv, item_id_t id, ItemMeta&& meta);
-    InvResult AddItem(Inventory& inv, item_id_t id, const ItemMeta& meta);
-    InvResult ViewItems(Inventory& inv);
-    InvResult SearchItem(Inventory& inv, const std::string& str);
-    InvResult EditItem(Inventory& inv, item_id_t id, ItemMeta&& item);
-    InvResult DeleteItem(Inventory& inv, item_id_t id);
-    InvResult AssignItem(Inventory& inv, item_id_t id, const std::string& to);
-    InvResult RetrieveItem(Inventory& inv, item_id_t id, const std::string& from);
-    InvResult ItemDetails(Inventory& inv, item_id_t id);
+    // InvResult AddItem(Inventory& inv, item_id_t id, const ItemMeta& meta);
+    K__Result AddItem(Inventory& inv);
+    K__Result ViewItems(Inventory& inv);
+    K__Result SearchItem(Inventory& inv);
+    // InvResult EditItem(Inventory& inv, item_id_t id, ItemMeta&& item);
+    K__Result DeleteItem(Inventory& inv);
+    // InvResult AssignItem(Inventory& inv, item_id_t id, const std::string& to);
+    // InvResult RetrieveItem(Inventory& inv, item_id_t id, const std::string& from);
+    K__Result ItemDetails(Inventory& inv);
 
 }; // namespace InvUserActions
 
@@ -256,6 +265,28 @@ namespace Input
 
         return true;
     }
+
+    InventoryItem* identitfied_item(const Inventory& inv, bool show_error)
+    {
+        auto id_ = Input::integer();
+
+        if (id_ == -1)
+        {
+            cout << "\n[ERROR] * Invalid id *" << '\n';
+            return nullptr;
+        }
+
+        auto itemptr = InvUtil_FindItemById(inv, (item_id_t)id_);
+
+        if (show_error && itemptr == nullptr)
+        {
+            cout << "\n[ERROR] * Item with id " << id_ << " not found *\n"
+                 <<   "        * Failed to load item *\n";
+
+        }
+        return itemptr;
+    }
+
 }; // namespace Input
 
 namespace Frontend
@@ -296,7 +327,7 @@ Select an option:
             if (valid)
                 break;
             else
-                cout << "*Invalid choice* try again" << endl;
+                cout << "[ERROR] * Invalid choice. Try again *" << endl;
         }
 
         return static_cast<Action>(op);
@@ -306,49 +337,13 @@ Select an option:
     {
         cout << "\n";
 
-        static const char* IDN = " >> ";
-
         switch (action)
         {
-            case Action::AddItem: {
-                item_id_t id;
-                ItemMeta meta;
-
-                cout << IDN << "Enter Item Id: ";
-                auto id_ = Input::integer();
-
-                if (id_ == -1)
-                {
-                    cout << "[ERROR] Invalid id" << '\n';
-                    break;
-                }
-
-                id = id_;
-
-                cout << IDN << "Enter Item name: ";
-                if (!Input::entity_name(meta.name, MAX_NAME_LEN))
-                    break;
-
-                meta.cat = IC_MACHINERY;
-
-                InvUserActions::AddItem(inv, id, meta);
-
-                break;
-            }
-
-            case Action::ViewItems:
-                InvUserActions::ViewItems(inv);
-                break;
-
-            case Action::SearchItem: {
-                cout << IDN << "Enter Item Name: "; 
-                string line;
-                getline(std::cin >> std::ws, line);
-
-                InvUserActions::SearchItem(inv, line);
-
-                break;
-            }
+            case Action::AddItem:       InvUserActions::AddItem(inv);       break;
+            case Action::ViewItems:     InvUserActions::ViewItems(inv);     break;
+            case Action::SearchItem:    InvUserActions::SearchItem(inv);    break;
+            case Action::DeleteItem:    InvUserActions::DeleteItem(inv);    break;
+            case Action::ItemDetails:   InvUserActions::ItemDetails(inv);    break;
 
             default:
                 break;
@@ -361,15 +356,38 @@ Select an option:
 
 namespace InvUserActions
 {
-    InvResult AddItem(Inventory& inv, item_id_t id, const ItemMeta& meta)
+    static const char* IDN = " >> ";
+
+    K__Result AddItem(Inventory& inv)
     {
-        if (InvUtil_FindItemById(inv, id) != nullptr)
+        item_id_t id;
+        ItemMeta meta;
+
+        cout << IDN << "Enter Item Id: ";
+        auto existing_item = Input::identitfied_item(inv, false);
+        // auto id_ = Input::integer();
+
+        // if (id_ == -1)
+        // {
+        //     cout << "[ERROR] Invalid id" << '\n';
+        //     return K__Result::Failed;
+        // }
+
+        // id = id_;
+
+        if (existing_item != nullptr)
         {
             cout << "[ERROR] Item with id " << id << " already exists\n"
                  << "        Failed to add item\n";
 
-            return InvResult::ErrDuplicateEntry;
+            return K__Result::Failed;
         }
+
+        cout << IDN << "Enter Item name: ";
+        if (!Input::entity_name(meta.name, MAX_NAME_LEN))
+            return K__Result::Failed;
+
+        meta.cat = IC_MACHINERY;
 
         if (inv.count == inv.capacity)
         {
@@ -399,25 +417,29 @@ namespace InvUserActions
 
         cout << "\nItem \"" << meta.name << "\" added successfully\n";
 
-        return InvResult::Ok;
+        return K__Result::Ok;
     }
 
-    InvResult ViewItems(Inventory& inv)
+    K__Result ViewItems(Inventory& inv)
     {
         if (inv.count == 0)
         {
             cout << "*No items added*\n";
-            return InvResult::Ok;
+            return K__Result::Ok;
         }
 
         for (int i = 0; i < inv.count; ++i)
             Frontend::DisplayItem(inv.items[i]);
 
-        return InvResult::Ok;
+        return K__Result::Ok;
     }
 
-    InvResult SearchItem(Inventory& inv, const std::string& str)
+    K__Result SearchItem(Inventory& inv)
     {
+        cout << IDN << "Enter Item Name: "; 
+        string str;
+        getline(std::cin >> std::ws, str);
+
         int count;
         for (int i = 0; i < inv.count; ++i)
         {
@@ -434,9 +456,10 @@ namespace InvUserActions
             cout << "*No items found*\n";
         }
 
-        return InvResult::Ok;
+        return K__Result::Ok;
     }
 
+#if 0
     InvResult EditItem(Inventory& inv, item_id_t id, ItemMeta&& meta)
     {
         auto item = InvUtil_FindItemById(inv, id);
@@ -450,18 +473,23 @@ namespace InvUserActions
 
         return InvResult::Ok;
     }
+#endif
 
-    InvResult DeleteItem(Inventory& inv, item_id_t id)
+    K__Result DeleteItem(Inventory& inv)
     {
-        auto item = InvUtil_FindItemById(inv, id);
+        // auto item = InvUtil_FindItemById(inv, id);
+        cout << IDN << "Enter Item Id: ";
+        auto item = Input::identitfied_item(inv);
 
         if (item == nullptr)
-            return InvResult::ErrNotFound;
+            return K__Result::Failed;
 
         item->active = false;
 
-        return InvResult::Ok;
+        return K__Result::Ok;
     }
+
+#if 0
 
     Member* FindMemberByName(Member* head, const std::string& name)
     {
@@ -538,21 +566,24 @@ namespace InvUserActions
         return InvResult::Ok;
     }
 
+#endif
 
-    InvResult ItemDetails(Inventory& inv, item_id_t id)
+    K__Result ItemDetails(Inventory& inv)
     {
-        auto item = InvUtil_FindItemById(inv, id);
+        // auto item = InvUtil_FindItemById(inv, id);
+        cout << IDN << "Enter Item Id: ";
+        auto item = Input::identitfied_item(inv);
 
         if (item == nullptr)
-            return InvResult::ErrNotFound;
+            return K__Result::Failed;
 
         cout << "ItemDetails(): " << item->item_id << " | " << item->meta.name << endl;
 
-        return InvResult::Ok;
+        return K__Result::Ok;
     }
 }; // namespace InvUserActions
 
-InventoryItem* InvUtil_FindItemById(Inventory& inv, item_id_t id, bool active_only)
+InventoryItem* InvUtil_FindItemById(const Inventory& inv, item_id_t id, bool active_only)
 {
     for (int i = 0; i < inv.count; ++i)
     {
