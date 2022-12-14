@@ -128,8 +128,8 @@ namespace InvUserActions
     K__Result EditItem(Inventory& inv);
     K__Result DeleteItem(Inventory& inv);
     K__Result AssignItem(Inventory& inv);
-    // InvResult AssignItem(Inventory& inv, item_id_t id, const std::string& to);
     // InvResult RetrieveItem(Inventory& inv, item_id_t id, const std::string& from);
+    K__Result RetrieveItem(Inventory& inv);
     K__Result ItemDetails(Inventory& inv);
 
 }; // namespace InvUserActions
@@ -158,7 +158,7 @@ namespace Frontend
         static constexpr int w3 = 18;
         static constexpr int w4 = 18;
 
-        static void Header()
+        static inline void Header()
         {
             cout
                 << std::setw(w1) << std::left << "ID"
@@ -168,11 +168,11 @@ namespace Frontend
             << "\n";
 
             cout
-            << std::setw(w1 + w2 + w3 + w4)
-            << std::setfill('-') << "" << "\n" << std::setfill(' ');
+                << std::setw(w1 + w2 + w3 + w4)
+                << std::setfill('-') << "" << "\n" << std::setfill(' ');
         }
 
-        static void Summary(InventoryItem& item)
+        static inline void Summary(InventoryItem& item)
         {
             cout
                 << std::setw(w1) << std::left << item.item_id
@@ -182,15 +182,13 @@ namespace Frontend
                 << "\n";   
         }
 
-        void Full(InventoryItem& item)
+        static inline uint32_t MemList(InventoryItem& item)
         {
-            Header();
-            Summary(item);
             auto mem = item.allocated_to;
+            int i = 0;
             if (mem != nullptr)
             {
                 cout << "\nAssigned To: \n";
-                int i = 0;
                 while (mem != nullptr)
                 {
                     cout
@@ -200,6 +198,15 @@ namespace Frontend
                     mem = mem->next;
                 }
             }
+
+            return i;
+        }
+
+        uint32_t Full(InventoryItem& item)
+        {
+            Header();
+            Summary(item);
+            return MemList(item);
         }
 
         inline static void Compact(InventoryItem& item)
@@ -443,6 +450,9 @@ Select an option:
             case Action::AssignItem:
                 InvUserActions::AssignItem(inv);
                 break;
+            case Action::RetrieveItem:
+                InvUserActions::RetrieveItem(inv);
+                break;
             case Action::ItemDetails:
                 InvUserActions::ItemDetails(inv);
                 break;
@@ -546,7 +556,7 @@ namespace InvUserActions
         if (inv.count == 0)
         {
             cout << "*No items added*\n";
-            return K__Result::Ok;
+            return K__Result::Failed;
         }
 
         Frontend::DisplayItem::Header();
@@ -591,13 +601,28 @@ namespace InvUserActions
         return K__Result::Ok;
     }
 
+
+#define SELECT_ITEM(inv, item) \
+    { \
+        K__Result res; \
+        if ((res = ViewItems(inv)) != K__Result::Ok) \
+            return res; \
+        cout << "\n"; \
+    } \
+    cout << IDN << "Enter Item Id: "; \
+    auto item = Input::identitfied_item(inv); \
+    if (item == nullptr) \
+        return K__Result::Failed; \
+
     K__Result EditItem(Inventory& inv)
     {
-        cout << IDN << "Enter Item Id: ";
-        auto item = Input::identitfied_item(inv);
+        SELECT_ITEM(inv, item);
 
-        if (item == nullptr)
-            return K__Result::Failed;
+        // cout << IDN << "Enter Item Id: ";
+        // auto item = Input::identitfied_item(inv);
+
+        // if (item == nullptr)
+        //     return K__Result::Failed;
 
         cout << IDN << "Enter Item's new name (press enter to keep original): ";
         static name_str_t name;
@@ -629,8 +654,10 @@ namespace InvUserActions
 
     K__Result DeleteItem(Inventory& inv)
     {
-        cout << IDN << "Enter Item Id: ";
-        auto item = Input::identitfied_item(inv);
+        SELECT_ITEM(inv, item);
+
+        // cout << IDN << "Enter Item Id: ";
+        // auto item = Input::identitfied_item(inv);
 
         if (item == nullptr)
             return K__Result::Failed;
@@ -648,10 +675,12 @@ namespace InvUserActions
 
     K__Result AssignItem(Inventory& inv)
     {
-        cout << IDN << "Enter Item Id: ";
-        auto item = Input::identitfied_item(inv);
-        if (item == nullptr)
-            return K__Result::Failed;
+        // cout << IDN << "Enter Item Id: ";
+        // auto item = Input::identitfied_item(inv);
+        // if (item == nullptr)
+        //     return K__Result::Failed;
+
+        SELECT_ITEM(inv, item);
 
         if (item->item_count > 0)
         {
@@ -670,35 +699,33 @@ namespace InvUserActions
 
         cout << "\n";
 
-#if 0
-        auto entry = FindMemberByName(item->allocated_to, name);
-
-        if (entry == nullptr)
-        {
-            entry = CreateMember(name);
-
-            auto tail = item->allocated_to;
-
-            if (tail != nullptr)
-                tail->prev = entry;
-
-            item->allocated_to = entry;
-
-            entry->next = tail;
-            entry->prev = nullptr;
-        }
-
-        ++entry->borrow_count;
-        --item->item_count;
-
-#endif
-
         cout
             << "Item \"" << item->meta.name
             << "\" assigned to \"" << name << "\" successfully\n";
 
         return K__Result::Ok;
     }
+
+    K__Result RetrieveItem(Inventory& inv)
+    {
+        SELECT_ITEM(inv, item);
+
+        if (item->assigned_count == 0)
+        {
+            cout << "\n* No units currently previously assigned to any member *" << '\n';
+            return K__Result::Ok;
+        }
+
+        auto mem_count = Frontend::DisplayItem::Full(*item);
+
+        cout << IDN << "Select an entry: ";
+        auto location = Input::integer();
+
+        cout << "\n";
+
+        return K__Result::Ok;
+    }
+
 
 #if 0
     InvResult RetrieveItem(Inventory& inv, item_id_t id, const std::string& from)
