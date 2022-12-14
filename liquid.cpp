@@ -1,13 +1,13 @@
 #include <iostream>
 #include <sstream>
-#include <fstream>
+// #include <fstream>
 #include <string>
 #include <cstring>
 #include <limits>
 #include <iomanip>
 #include <cstdint>
 #include <cctype>
-#include <type_traits>
+// #include <type_traits>
 
 using namespace std;
 
@@ -52,6 +52,7 @@ struct InventoryItem
     item_id_t item_id = 0;
     ItemMeta meta {};
     item_count_t item_count = 0;
+    item_count_t assigned_count = 0;
     Member* allocated_to = nullptr;
     bool active = true;
 };
@@ -133,6 +134,7 @@ namespace InvUserActions
 
 }; // namespace InvUserActions
 
+
 namespace Frontend
 {
     enum class Action
@@ -149,18 +151,69 @@ namespace Frontend
         ItemDetails,
     };
 
-    inline void DisplayItem(InventoryItem& item)
+    namespace DisplayItem
     {
-        cout 
-            << item.item_id << " | "
-            << item.meta.name << " | "
-            << item.item_count << endl;
-    }
+        static constexpr int w1 = 6;
+        static constexpr int w2 = 18;
+        static constexpr int w3 = 18;
+        static constexpr int w4 = 18;
+
+        static void Header()
+        {
+            cout
+                << std::setw(w1) << std::left << "ID"
+                << std::setw(w2) << std::left << "Name"
+                << std::setw(w3) << std::left << "Units Available"
+                << std::setw(w4) << std::left << "Units Assigned"
+            << "\n";
+
+            cout
+            << std::setw(w1 + w2 + w3 + w4)
+            << std::setfill('-') << "" << "\n" << std::setfill(' ');
+        }
+
+        static void Summary(InventoryItem& item)
+        {
+            cout
+                << std::setw(w1) << std::left << item.item_id
+                << std::setw(w2) << std::left << item.meta.name
+                << std::setw(w3) << std::left << item.item_count
+                << std::setw(w4) << std::left << item.assigned_count
+                << "\n";   
+        }
+
+        void Full(InventoryItem& item)
+        {
+            Header();
+            Summary(item);
+            auto mem = item.allocated_to;
+            if (mem != nullptr)
+            {
+                cout << "\nAssigned To: \n";
+                int i = 0;
+                while (mem != nullptr)
+                {
+                    cout
+                        << "   > " << ++i << ". "
+                        << mem->name << " | "
+                        << mem->borrow_count << " unit(s) assigned" << "\n"; 
+                    mem = mem->next;
+                }
+            }
+        }
+
+        inline static void Compact(InventoryItem& item)
+        {
+            Summary(item);
+        }
+    };
 
     Action RequestAction();
     void HandleAction(Inventory& inv, Action action);
 
 }; // namespace Frontend
+
+void impl_assign(InventoryItem* item, const char* name);
 
 int main()
 {
@@ -179,6 +232,18 @@ int main()
     inv.items[inv.count++] = { .item_id = 4, .meta={ "Item 4", IC_MACHINERY }, .item_count = 41 };
     inv.items[inv.count++] = { .item_id = 5, .meta={ "Item 5", IC_MACHINERY }, .item_count = 41 };
     inv.items[inv.count++] = { .item_id = 6, .meta={ "Item 6", IC_MACHINERY }, .item_count = 41 };
+
+    impl_assign(&inv.items[2], "abc");
+    impl_assign(&inv.items[2], "def");
+
+    impl_assign(&inv.items[3], "abc");
+    impl_assign(&inv.items[3], "Hello");
+    impl_assign(&inv.items[3], "Hello 2");
+    impl_assign(&inv.items[3], "Hello");
+
+    impl_assign(&inv.items[4], "LMN");
+    impl_assign(&inv.items[5], "OPQ");
+
     // clang-format on
 #endif
 
@@ -484,8 +549,17 @@ namespace InvUserActions
             return K__Result::Ok;
         }
 
+        Frontend::DisplayItem::Header();
+
         for (int i = 0; i < inv.count; ++i)
-            Frontend::DisplayItem(inv.items[i]);
+        {
+            auto& item = inv.items[i];
+
+            if (!item.active)
+                continue;
+
+            Frontend::DisplayItem::Compact(item);
+        }
 
         return K__Result::Ok;
     }
@@ -505,7 +579,7 @@ namespace InvUserActions
             if (item.active && item.meta.name == str)
             {
                 ++count;
-                Frontend::DisplayItem(inv.items[i]);
+                Frontend::DisplayItem::Full(inv.items[i]);
             }
         }
 
@@ -570,18 +644,7 @@ namespace InvUserActions
         return K__Result::Ok;
     }
 
-    Member* FindMemberByName(Member* head, const char* name)
-    {
-        while (head != nullptr)
-        {
-            if (strcmp(head->name, name) == 0)
-                return head;
 
-            head = head->next;
-        }
-
-        return nullptr;
-    }
 
     K__Result AssignItem(Inventory& inv)
     {
@@ -607,6 +670,7 @@ namespace InvUserActions
 
         cout << "\n";
 
+#if 0
         auto entry = FindMemberByName(item->allocated_to, name);
 
         if (entry == nullptr)
@@ -627,6 +691,8 @@ namespace InvUserActions
         ++entry->borrow_count;
         --item->item_count;
 
+#endif
+
         cout
             << "Item \"" << item->meta.name
             << "\" assigned to \"" << name << "\" successfully\n";
@@ -635,49 +701,6 @@ namespace InvUserActions
     }
 
 #if 0
-    Member* FindMemberByName(Member* head, const std::string& name)
-    {
-        while (head != nullptr)
-        {
-            if (head->name == name)
-                return head;
-
-            head = head->next;
-        }
-
-        return nullptr;
-    }
-
-    InvResult AssignItem(Inventory& inv, item_id_t id, const std::string& to)
-    {
-        auto item = InvUtil_FindItemById(inv, id);
-
-        if (item == nullptr)
-            return InvResult::ErrNotFound;
-
-        auto entry = FindMemberByName(item->allocated_to, to);
-
-        if (entry == nullptr)
-        {
-            entry = CreateMember(to);
-
-            auto tail = item->allocated_to;
-
-            if (tail != nullptr)
-                tail->prev = entry;
-
-            item->allocated_to = entry;
-
-            entry->next = tail;
-            entry->prev = nullptr;
-        }
-
-        ++entry->borrow_count;
-        --item->item_count;
-
-        return InvResult::Ok;
-    }
-
     InvResult RetrieveItem(Inventory& inv, item_id_t id, const std::string& from)
     {
         auto item = InvUtil_FindItemById(inv, id);
@@ -721,7 +744,7 @@ namespace InvUserActions
 
         cout << "\n";
 
-        Frontend::DisplayItem(*item);
+        Frontend::DisplayItem::Full(*item);
 
         return K__Result::Ok;
     }
@@ -737,4 +760,41 @@ InventoryItem* InvUtil_FindItemById(const Inventory& inv, item_id_t id, bool act
     }
 
     return nullptr;
+}
+
+Member* FindMemberByName(Member* head, const char* name)
+{
+    while (head != nullptr)
+    {
+        if (strcmp(head->name, name) == 0)
+            return head;
+
+        head = head->next;
+    }
+
+    return nullptr;
+}
+
+void impl_assign(InventoryItem* item, const char* name)
+{
+    auto entry = FindMemberByName(item->allocated_to, name);
+
+    if (entry == nullptr)
+    {
+        entry = CreateMember(name);
+
+        auto tail = item->allocated_to;
+
+        if (tail != nullptr)
+            tail->prev = entry;
+
+        item->allocated_to = entry;
+
+        entry->next = tail;
+        entry->prev = nullptr;
+    }
+
+    ++entry->borrow_count;
+    ++item->assigned_count;
+    --item->item_count;
 }
