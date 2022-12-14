@@ -221,6 +221,7 @@ namespace Frontend
 }; // namespace Frontend
 
 void impl_assign(InventoryItem* item, const char* name);
+void impl_retrieve(InventoryItem* item, Member* entry);
 
 int main()
 {
@@ -231,7 +232,7 @@ int main()
     Inventory inv;
     InitInventory(&inv);
 
-#if 1
+#if 0
     // clang-format off
     inv.items[inv.count++] = { .item_id = 1, .meta={ "Item 1", IC_MACHINERY }, .item_count = 41 };
     inv.items[inv.count++] = { .item_id = 2, .meta={ "Item 2", IC_MACHINERY }, .item_count = 41 };
@@ -253,6 +254,18 @@ int main()
 
     // clang-format on
 #endif
+#if 1
+    // clang-format off
+    inv.items[inv.count++] = { .item_id = 4, .meta={ "Item 4", IC_MACHINERY }, .item_count = 41 };
+
+    impl_assign(&inv.items[0], "abc");
+    impl_assign(&inv.items[0], "Hello");
+    impl_assign(&inv.items[0], "Hello 2");
+    impl_assign(&inv.items[0], "Hello");
+
+    // clang-format on
+#endif
+
 
     bool first_tick = true;
 
@@ -596,11 +609,11 @@ namespace InvUserActions
         if (count == 0)
         {
             cout << "*No items found*\n";
+            return K__Result::Failed;
         }
 
         return K__Result::Ok;
     }
-
 
 #define SELECT_ITEM(inv, item) \
     { \
@@ -617,12 +630,6 @@ namespace InvUserActions
     K__Result EditItem(Inventory& inv)
     {
         SELECT_ITEM(inv, item);
-
-        // cout << IDN << "Enter Item Id: ";
-        // auto item = Input::identitfied_item(inv);
-
-        // if (item == nullptr)
-        //     return K__Result::Failed;
 
         cout << IDN << "Enter Item's new name (press enter to keep original): ";
         static name_str_t name;
@@ -656,9 +663,6 @@ namespace InvUserActions
     {
         SELECT_ITEM(inv, item);
 
-        // cout << IDN << "Enter Item Id: ";
-        // auto item = Input::identitfied_item(inv);
-
         if (item == nullptr)
             return K__Result::Failed;
 
@@ -671,15 +675,8 @@ namespace InvUserActions
         return K__Result::Ok;
     }
 
-
-
     K__Result AssignItem(Inventory& inv)
     {
-        // cout << IDN << "Enter Item Id: ";
-        // auto item = Input::identitfied_item(inv);
-        // if (item == nullptr)
-        //     return K__Result::Failed;
-
         SELECT_ITEM(inv, item);
 
         if (item->item_count > 0)
@@ -721,45 +718,28 @@ namespace InvUserActions
         cout << IDN << "Select an entry: ";
         auto location = Input::integer();
 
+        if (location < 1 || location > mem_count)
+        {
+            cout << "\n [ERROR] * Invalid choice *" << '\n';
+            return K__Result::Failed;
+        }
+        --location;
+
         cout << "\n";
+
+        auto entry = item->allocated_to;
+        for (int i = 0; i < location; ++i)
+            entry = entry->next;
+
+        /* TODO: check for unreachable case of entry->borrow_count == 0 */
+        impl_retrieve(item, entry);
+
+        cout
+            << "Item \"" << item->meta.name
+            << "\" retrieved successfully\n";
 
         return K__Result::Ok;
     }
-
-
-#if 0
-    InvResult RetrieveItem(Inventory& inv, item_id_t id, const std::string& from)
-    {
-        auto item = InvUtil_FindItemById(inv, id);
-
-        if (item == nullptr)
-            return InvResult::ErrNotFound;
-
-        auto entry = FindMemberByName(item->allocated_to, from);
-
-        if (entry == nullptr || entry->borrow_count == 0)
-            return InvResult::ErrInvalidPayload;
-
-        if (--entry->borrow_count == 0)
-        {
-            auto first = entry->prev;
-            auto second = entry->next;
-
-            Member* head = first == nullptr ? item->allocated_to : first->next;
-
-            head->next = second;
-
-            if (second != nullptr)
-                second->prev = first;
-
-            DeleteMember(entry);
-        }
-
-        ++item->item_count;
-
-        return InvResult::Ok;
-    }
-#endif
 
     K__Result ItemDetails(Inventory& inv)
     {
@@ -825,3 +805,27 @@ void impl_assign(InventoryItem* item, const char* name)
     ++item->assigned_count;
     --item->item_count;
 }
+
+
+void impl_retrieve(InventoryItem* item, Member* entry)
+{
+    if (--entry->borrow_count == 0)
+    {
+        auto first = entry->prev;
+        auto second = entry->next;
+
+        Member** head = first == nullptr ?
+            &item->allocated_to : &first->next;
+
+        *head = second;
+
+        if (second != nullptr)
+            second->prev = first;
+
+        DeleteMember(entry);
+    }
+
+    ++item->item_count;
+    --item->assigned_count;
+}
+
