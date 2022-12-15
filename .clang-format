@@ -13,13 +13,13 @@
 DisableFormat: false
 
 Language: Cpp
-Standard: c++17
+Standard: c++14
 ColumnLimit: 120
 MaxEmptyLinesToKeep: 3
 
 UseTab: Never # Use `TabWidth` to configure this if this is set to a value other than 'Never'
 IndentWidth: 4
-PPIndentWidth: 2 # Preprocessor indent width
+PPIndentWidth: 0 # Preprocessor indent width
 ConstructorInitializerIndentWidth: 2
 ContinuationIndentWidth: 2 # Indent applied when wrapping statements
 

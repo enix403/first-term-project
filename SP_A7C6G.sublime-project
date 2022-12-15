@@ -8,13 +8,22 @@
         {
             "name": "C++ Unit",
             "shell": true,
-            "working_dir": "$file_path",
             "selector": "source.cpp",
-            "shell_cmd": "clang++ -std=c++14 '${file_name}' -o '${file_base_name}.xout'",
+            "env": {
+                "ENTRY_POINT": "liquid.cpp",
+            },
+
+            // "working_dir": "$file_path",
+            // "shell_cmd": "clang++ -std=c++14 '${file_name}' -o '${file_base_name}.xout'",
+            
+            "working_dir": "$project_path",    
+            "shell_cmd": "clang++ -std=c++14 \"\\$ENTRY_POINT\" -o 'liquid.xout'",
+
             "variants": [
                 {
                     "name": "Run",
-                    "shell_cmd": "clang++ -std=c++14 '${file_name}' -o '${file_base_name}.xout' && './${file_base_name}.xout'",
+                    // "shell_cmd": "clang++ -std=c++14 '${file_name}' -o '${file_base_name}.xout' && './${file_base_name}.xout'",
+                    "shell_cmd": "clang++ -std=c++14 \"\\$ENTRY_POINT\" -o 'liquid.xout' && './liquid.xout'",
                 },
                 {
                     "name": "Clean",

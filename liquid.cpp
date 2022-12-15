@@ -1,72 +1,16 @@
 #include <iostream>
 #include <sstream>
-// #include <fstream>
 #include <string>
 #include <cstring>
 #include <limits>
 #include <iomanip>
-#include <cstdint>
 #include <cctype>
 // #include <type_traits>
 
+#include "repr.h"
+#include "serialization.h"
+
 using namespace std;
-
-enum class K__Result
-{
-    Ok = 0,
-    Failed,
-    Unrecoverable
-};
-
-enum ItemCategory
-{
-    IC_STATIONARY,
-    IC_MACHINERY,
-    IC_ACCESSORY,
-};
-
-static constexpr size_t MAX_NAME_LEN = 50;
-
-typedef char name_str_t[MAX_NAME_LEN];
-
-struct Member
-{
-    char name[MAX_NAME_LEN];
-    int borrow_count = 0;
-
-    Member* prev = nullptr;
-    Member* next = nullptr;
-};
-
-typedef uint16_t item_id_t;
-typedef uint32_t item_count_t;
-
-struct ItemMeta
-{
-    char name[MAX_NAME_LEN];
-    ItemCategory cat;
-};
-
-struct InventoryItem
-{
-    item_id_t item_id = 0;
-    ItemMeta meta {};
-    item_count_t item_count = 0;
-    item_count_t assigned_count = 0;
-    Member* allocated_to = nullptr;
-    bool active = true;
-};
-
-
-// auto __trival = std::is_trivially_copyable<InventoryItem>::value;
-// auto __sz = sizeof(InventoryItem);
-
-struct Inventory
-{
-    InventoryItem* items;
-    uint32_t count;
-    uint32_t capacity;
-};
 
 inline constexpr uint32_t grow(uint32_t old)
 {
@@ -91,47 +35,29 @@ inline void DeleteMember(Member* m)
 }
 
 InventoryItem* InvUtil_FindItemById(const Inventory& inv, item_id_t id, bool active_only = true);
-void InitInventory(Inventory* inv);
-void FreeInventory(Inventory* inv);
+static void InitInventory(Inventory* inv);
+static void FreeInventory(Inventory* inv);
 
-inline void Welcome()
-{
-    cout << "* Welcome to PUCIT Inventory Management System *\n" << endl;
-}
-void LoadFromFile(Inventory& inv);
-void OnBeforeQuit(Inventory& inv);
+static inline void Welcome();
+static void OnBeforeQuit(Inventory& inv);
 
 namespace Input
 {
-    int64_t integer(bool allow_empty = false);
-    bool entity_name(char* target, size_t max_len, bool allow_empty = false);
-    InventoryItem* identitfied_item(const Inventory& inv, bool show_error = true);
+    int64_t             integer(bool allow_empty = false);
+    bool                entity_name(char* target, size_t max_len, bool allow_empty = false);
+    InventoryItem*      identitfied_item(const Inventory& inv, bool show_error = true);
 }; // namespace Input
 
 namespace InvUserActions
 {
-    enum class InvResult
-    {
-        ErrUnknown,
-        ErrNotFound,
-        ErrOutOfMemory,
-        ErrInvalidPayload,
-        ErrDuplicateEntry,
-        WarnEmpty,
-        Ok,
-    };
-
-    // InvResult AddItem(Inventory& inv, item_id_t id, const ItemMeta& meta);
     K__Result AddItem(Inventory& inv);
     K__Result ViewItems(Inventory& inv);
     K__Result SearchItem(Inventory& inv);
     K__Result EditItem(Inventory& inv);
     K__Result DeleteItem(Inventory& inv);
     K__Result AssignItem(Inventory& inv);
-    // InvResult RetrieveItem(Inventory& inv, item_id_t id, const std::string& from);
     K__Result RetrieveItem(Inventory& inv);
     K__Result ItemDetails(Inventory& inv);
-
 }; // namespace InvUserActions
 
 
@@ -153,7 +79,7 @@ namespace Frontend
 
     namespace DisplayItem
     {
-        static constexpr int w1 = 6;
+        static constexpr int w1 =  6;
         static constexpr int w2 = 18;
         static constexpr int w3 = 18;
         static constexpr int w4 = 18;
@@ -227,12 +153,12 @@ int main()
 {
     std::ios::sync_with_stdio(false);
 
-    Welcome();
+    // Welcome();
 
     Inventory inv;
     InitInventory(&inv);
 
-#if 0
+#if 1
     // clang-format off
     inv.items[inv.count++] = { .item_id = 1, .meta={ "Item 1", IC_MACHINERY }, .item_count = 41 };
     inv.items[inv.count++] = { .item_id = 2, .meta={ "Item 2", IC_MACHINERY }, .item_count = 41 };
@@ -254,7 +180,7 @@ int main()
 
     // clang-format on
 #endif
-#if 1
+#if 0
     // clang-format off
     inv.items[inv.count++] = { .item_id = 4, .meta={ "Item 4", IC_MACHINERY }, .item_count = 41 };
 
@@ -266,10 +192,11 @@ int main()
     // clang-format on
 #endif
 
+    Serialization::WriteToFile(inv);    
 
     bool first_tick = true;
 
-    for (;;)
+    for (;false;)
     {
         if (!first_tick)
         {
@@ -308,8 +235,15 @@ void FreeInventory(Inventory* inv)
     delete inv->items;
 }
 
-void LoadFromFile(Inventory& inv) {}
-void OnBeforeQuit(Inventory& inv) {}
+static inline void Welcome()
+{
+    cout << "* Welcome to PUCIT Inventory Management System *\n" << endl;
+}
+
+static void OnBeforeQuit(Inventory& inv)
+{
+
+}
 
 namespace Input
 {
@@ -317,7 +251,7 @@ namespace Input
 
     int64_t integer(bool allow_empty)
     {
-        static const auto MAX_LINE_SIZE = 1024;
+        static const auto MAX_LINE_SIZE = 1024ll;
         static char line[MAX_LINE_SIZE];
         std::stringstream ss;
 
@@ -363,7 +297,7 @@ namespace Input
 
         if (std::cin.fail() || xc >= max_len)
         {
-            cout << "[ERROR] * Enter a name of less than " << MAX_NAME_LEN << "characters *\n";
+            cout << "[ERROR] * Enter a name of less than " << max_len << "characters *\n";
 
             return false;
         }
@@ -709,7 +643,7 @@ namespace InvUserActions
 
         if (item->assigned_count == 0)
         {
-            cout << "\n* No units currently previously assigned to any member *" << '\n';
+            cout << "\n* No units currently assigned to any member *" << '\n';
             return K__Result::Ok;
         }
 
@@ -735,8 +669,7 @@ namespace InvUserActions
         impl_retrieve(item, entry);
 
         cout
-            << "Item \"" << item->meta.name
-            << "\" retrieved successfully\n";
+            << "Item \"" << item->meta.name << "\" retrieved successfully\n";
 
         return K__Result::Ok;
     }
