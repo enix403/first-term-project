@@ -22,6 +22,7 @@ namespace Serialization
         0x59, 0x53, 0x54, 0x45, 0x4D, 0x41, 0x42, 0x43,
     }; // hexdump of "INVMGMTSYSTEMABC"
 
+    using DataFile = fstream*;
 
     /* --------------------------------------------------------------- */
     /* --------------------------- WRITING --------------------------- */
@@ -42,78 +43,59 @@ namespace Serialization
         fout.write(TO_BYTES(x), sizeof(T) * N);
     }
 
-// #define WRITE_ARRAY(fout, arr) fout.write(TO_BYTES(arr), sizeof(arr))
-// #define WRITE_OPAQUE(fout, x) fout.write(TO_BYTES(&(x)), sizeof(x))
-
-    inline void WriteItem(fstream& fout, const InventoryItem& item)
+    inline void WriteItem(DataFile f, const InventoryItem& item)
     {
-        // WRITE_OPAQUE(fout, item);
-        // write_bytes(fout, item);
-        write_bytes(fout, item.item_id);
-        write_bytes(fout, item.meta);
-        write_bytes(fout, item.item_count);
-        write_bytes(fout, item.assigned_count);
-        write_bytes(fout, item.active);
+        write_bytes(*f, item.item_id);
+        write_bytes(*f, item.meta);
+        write_bytes(*f, item.item_count);
+        write_bytes(*f, item.assigned_count);
+        write_bytes(*f, item.active);
     }
 
     inline void WriteSingleMember(fstream& fout, const Member* mem)
     {
-        // WRITE_ARRAY(fout, mem->name);
-        // WRITE_OPAQUE(fout, mem->borrow_count);
         write_bytes(fout, mem->name);
         write_bytes(fout, mem->borrow_count);
     }
 
     template<typename T = void>
-    void WriteMembers(fstream& fout, const InventoryItem& item)
+    void WriteMembers(DataFile f, const InventoryItem& item)
     {
-        auto count_pos = fout.tellp();
+        auto count_pos = f->tellp();
 
         uint32_t count = 0;
-        // WRITE_OPAQUE(fout, count);
-        write_bytes(fout, count);
+        write_bytes(*f, count);
 
         auto mem = item.allocated_to;
         while (mem != nullptr)
         {
-            WriteSingleMember(fout, mem);
+            WriteSingleMember(*f, mem);
             ++count;
             mem = mem->next;
         }
 
-        auto next_write_spos = fout.tellp();
+        auto next_write_spos = f->tellp();
 
-        fout.seekp(count_pos);
-        // WRITE_OPAQUE(fout, count);
-        write_bytes(fout, count);
+        f->seekp(count_pos);
+        write_bytes(*f, count);
 
-        fout.seekp(next_write_spos);
+        f->seekp(next_write_spos);
     }
 
     template<typename T = void>
-    // void WriteToFile(const Inventory& inv)
-    void WriteToFile(fstream& fout, const Inventory& inv)
+    void WriteToFile(DataFile f, const Inventory& inv)
     {
-        cout << "Writing" << endl;
+        f->clear();
+        f->seekp(0, ios::beg);
 
-        fout.clear();
-        fout.seekp(0, ios::beg);
-
-        // std::ofstream fout(MAIN_FILE_NAME, ios::binary | ios::ate);
-    
-        // WRITE_ARRAY(fout, MAGIC_BYTES);
-        // WRITE_OPAQUE(fout, inv.count);
-
-        write_bytes(fout, MAGIC_BYTES);
-        write_bytes(fout, inv.count);
+        write_bytes(*f, MAGIC_BYTES);
+        write_bytes(*f, inv.count);
 
         for (int i = 0; i < inv.count; ++i)
-            WriteItem(fout, inv.items[i]);
+            WriteItem(f, inv.items[i]);
 
         for (int i = 0; i < inv.count; ++i)
-            WriteMembers(fout, inv.items[i]);
-
-        fout.close();
+            WriteMembers(f, inv.items[i]);
     }
 
     /* --------------------------------------------------------------- */
@@ -147,8 +129,6 @@ namespace Serialization
         return memcmp(file_bytes, MAGIC_BYTES, len) == 0;
     }
 
-    using DataFile = fstream*; 
-
     inline DataFile OpenFile()
     {
         auto f = new std::fstream();
@@ -179,11 +159,8 @@ namespace Serialization
         delete f;
     }
 
-    inline item_count_t ReadCount(DataFile f, bool seek = true)
+    inline item_count_t ReadCount(DataFile f)
     {
-        if (seek)
-            f->seekg(sizeof(MAGIC_BYTES), ios::beg);
-
         item_count_t count;
         if (read_bytes(*f, count))
             return count;
@@ -212,23 +189,55 @@ namespace Serialization
         return ReadItem(f, item);
     }
 
+    inline bool ReadSingleMember(DataFile f, Member* mem)
+    {
+        bool res = 1;
+
+        res &= read_bytes(*f, mem->name);
+        res &= read_bytes(*f, mem->borrow_count);
+
+        return res;
+    }
+
+
+    inline bool ReadMembers(DataFile f, InventoryItem& item)
+    {
+        uint32_t count;
+        if (!read_bytes(*f, count))
+            return false;
+
+        Member* tail = nullptr;
+        Member* head = nullptr;
+
+        for (int i = 0; i < count; ++i)
+        {
+            Member* current = CreateMember("");
+            if (!ReadSingleMember(f, current))
+                return false;
+
+            if (i == 0)
+                head = current;
+
+            current->prev = tail;
+            current->next = nullptr;
+
+            if (tail != nullptr)
+                tail->next = current;
+
+            tail = current;
+        }
+
+        item.allocated_to = head;
+
+        return true;
+    }
+
     template<typename T = void>
     bool ReadFromFile(DataFile f, Inventory& inv)
     {
-
-#define ERROR() \
-    do { \
-        cout << "[WARN] Invalid or corrupted file -- Skipping" << endl; \
-        return false; \
-    } while (false)
-
-        cout << "Reading\n" << endl;
-
-        auto count = ReadCount(f, false); 
+        auto count = ReadCount(f); 
         if (count == -1)
-            ERROR();
-
-        cout << count << endl;
+            return false;
 
         InvUtil_AllocateFor(inv, pow(2, ceil(log2(count))));
 
@@ -236,14 +245,18 @@ namespace Serialization
         for (int i = 0; i < count; ++i)
         {
             if (!ReadItem(f, item))
-                ERROR();
+                return false;
 
             inv.items[i] = item;
         }
 
+        for (int i = 0; i < count; ++i)
+            if (!ReadMembers(f, inv.items[i]))
+                return false;
+
         inv.count = count;
 
-        return false;
+        return true;
     }
 
 } // namespace Serialization

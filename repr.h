@@ -64,6 +64,28 @@ struct Inventory
     uint32_t capacity;
 };
 
+inline constexpr uint32_t grow(uint32_t old)
+{
+    return old < 8 ? 8 : 2 * old;
+}
+
+inline Member* CreateMember(const char* name)
+{
+    Member* m = new Member;
+
+    strcpy(m->name, name);
+    m->borrow_count = 0;
+    m->next = nullptr;
+    m->prev = nullptr;
+
+    return m;
+}
+
+inline void DeleteMember(Member* m)
+{
+    delete m;
+}
+
 
 void InvUtil_AllocateFor(Inventory& inv, uint32_t capacity)
 {
@@ -85,7 +107,8 @@ void InvUtil_AllocateFor(Inventory& inv, uint32_t capacity)
     }
 }
 
-InventoryItem* InvUtil_FindItemById(const Inventory& inv, item_id_t id, bool active_only)
+// InventoryItem* InvUtil_FindItemById(const Inventory& inv, item_id_t id, bool active_only = true);
+InventoryItem* InvUtil_FindItemById(const Inventory& inv, item_id_t id, bool active_only = true)
 {
     for (int i = 0; i < inv.count; ++i)
     {

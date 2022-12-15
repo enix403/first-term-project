@@ -12,34 +12,11 @@
 
 using namespace std;
 
-inline constexpr uint32_t grow(uint32_t old)
-{
-    return old < 8 ? 8 : 2 * old;
-}
-
-inline Member* CreateMember(const char* name)
-{
-    Member* m = new Member;
-
-    strcpy(m->name, name);
-    m->borrow_count = 0;
-    m->next = nullptr;
-    m->prev = nullptr;
-
-    return m;
-}
-
-inline void DeleteMember(Member* m)
-{
-    delete m;
-}
-
-InventoryItem* InvUtil_FindItemById(const Inventory& inv, item_id_t id, bool active_only = true);
 static void InitInventory(Inventory* inv);
 static void FreeInventory(Inventory* inv);
 
 static inline void Welcome();
-static void OnBeforeQuit(Inventory& inv);
+static void OnBeforeQuit(Serialization::DataFile f, Inventory& inv);
 
 namespace Input
 {
@@ -105,7 +82,7 @@ namespace Frontend
                 << std::setw(w2) << std::left << item.meta.name
                 << std::setw(w3) << std::left << item.item_count
                 << std::setw(w4) << std::left << item.assigned_count
-                << "\n";   
+                << "\n";
         }
 
         static inline uint32_t MemList(InventoryItem& item)
@@ -142,7 +119,7 @@ namespace Frontend
     };
 
     Action RequestAction();
-    void HandleAction(Inventory& inv, Action action);
+    K__Result HandleAction(Inventory& inv, Action action);
 
 }; // namespace Frontend
 
@@ -205,6 +182,8 @@ int main()
         {
             if (!ReadFromFile(file, inv))
             {
+                cout << "[WARN] Invalid or corrupted file -- Skipping" << endl; \
+
                 // Reset in case of failed read
                 FreeInventory(&inv);
                 InitInventory(&inv);
@@ -212,13 +191,9 @@ int main()
         }
     }
 
-    cout << "\n";
-    InvUserActions::ViewItems(inv);
-
-
     bool first_tick = true;
 
-    for (;false;)
+    for (;;)
     {
         if (!first_tick)
         {
@@ -235,12 +210,13 @@ int main()
             break;
         }
 
-        Frontend::HandleAction(inv, action);
+        if (Frontend::HandleAction(inv, action) == K__Result::Ok)
+            Serialization::WriteToFile(file, inv);
     }
 
-    OnBeforeQuit(inv);
+    OnBeforeQuit(file, inv);
     Serialization::CloseFile(file);
-    
+
     FreeInventory(&inv);
 
     return 0;
@@ -264,9 +240,9 @@ static inline void Welcome()
     cout << "* Welcome to PUCIT Inventory Management System *\n" << endl;
 }
 
-static void OnBeforeQuit(Inventory& inv)
+static void OnBeforeQuit(Serialization::DataFile f, Inventory& inv)
 {
-
+    Serialization::WriteToFile(f, inv);
 }
 
 namespace Input
@@ -397,42 +373,30 @@ Select an option:
         return static_cast<Action>(op);
     }
 
-    void HandleAction(Inventory& inv, Action action)
+    K__Result HandleAction(Inventory& inv, Action action)
     {
         cout << "\n";
 
+        K__Result result = K__Result::Failed;
+
         switch (action)
         {
-            case Action::AddItem:
-                InvUserActions::AddItem(inv);
-                break;
-            case Action::ViewItems:
-                InvUserActions::ViewItems(inv);
-                break;
-            case Action::SearchItem:
-                InvUserActions::SearchItem(inv);
-                break;
-            case Action::EditItem:
-                InvUserActions::EditItem(inv);
-                break;
-            case Action::DeleteItem:
-                InvUserActions::DeleteItem(inv);
-                break;
-            case Action::AssignItem:
-                InvUserActions::AssignItem(inv);
-                break;
-            case Action::RetrieveItem:
-                InvUserActions::RetrieveItem(inv);
-                break;
-            case Action::ItemDetails:
-                InvUserActions::ItemDetails(inv);
-                break;
+            case Action::AddItem:           result = InvUserActions::AddItem(inv);           break;
+            case Action::ViewItems:         result = InvUserActions::ViewItems(inv);         break;
+            case Action::SearchItem:        result = InvUserActions::SearchItem(inv);        break;
+            case Action::EditItem:          result = InvUserActions::EditItem(inv);          break;
+            case Action::DeleteItem:        result = InvUserActions::DeleteItem(inv);        break;
+            case Action::AssignItem:        result = InvUserActions::AssignItem(inv);        break;
+            case Action::RetrieveItem:      result = InvUserActions::RetrieveItem(inv);      break;
+            case Action::ItemDetails:       result = InvUserActions::ItemDetails(inv);       break;
 
             default:
                 break;
         }
 
         cout << endl;
+
+        return result;
     }
 
 } // namespace Frontend
@@ -643,6 +607,8 @@ namespace InvUserActions
 
         cout << "\n";
 
+        impl_assign(item, name);
+
         cout
             << "Item \"" << item->meta.name
             << "\" assigned to \"" << name << "\" successfully\n";
@@ -689,11 +655,13 @@ namespace InvUserActions
 
     K__Result ItemDetails(Inventory& inv)
     {
-        cout << IDN << "Enter Item Id: ";
-        auto item = Input::identitfied_item(inv);
+        // cout << IDN << "Enter Item Id: ";
+        // auto item = Input::identitfied_item(inv);
 
-        if (item == nullptr)
-            return K__Result::Failed;
+        // if (item == nullptr)
+            // return K__Result::Failed;
+
+        SELECT_ITEM(inv, item);
 
         cout << "\n";
 
