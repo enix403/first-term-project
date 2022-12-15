@@ -7,6 +7,7 @@
 #include <iostream>
 #include <cstdint>
 #include <cstring>
+#include <cmath>
 
 #include "repr.h"
 
@@ -30,21 +31,21 @@ namespace Serialization
 #define TO_BYTES_R(ptr) reinterpret_cast<char*>(ptr)
 
     template <typename T>
-    inline void write_bytes(ofstream& fout, const T& x)
+    inline void write_bytes(fstream& fout, const T& x)
     {
-        fout.write(TO_BYTES(&(x)), sizeof(x));
+        fout.write(TO_BYTES(&(x)), sizeof(T));
     }
 
     template <typename T, size_t N>
-    inline void write_bytes(ofstream& fout, const T (&x)[N])
+    inline void write_bytes(fstream& fout, const T (&x)[N])
     {
-        fout.write(TO_BYTES(x), sizeof(x));
+        fout.write(TO_BYTES(x), sizeof(T) * N);
     }
 
 // #define WRITE_ARRAY(fout, arr) fout.write(TO_BYTES(arr), sizeof(arr))
 // #define WRITE_OPAQUE(fout, x) fout.write(TO_BYTES(&(x)), sizeof(x))
 
-    inline void WriteItem(ofstream& fout, const InventoryItem& item)
+    inline void WriteItem(fstream& fout, const InventoryItem& item)
     {
         // WRITE_OPAQUE(fout, item);
         // write_bytes(fout, item);
@@ -55,7 +56,7 @@ namespace Serialization
         write_bytes(fout, item.active);
     }
 
-    inline void WriteSingleMember(ofstream& fout, const Member* mem)
+    inline void WriteSingleMember(fstream& fout, const Member* mem)
     {
         // WRITE_ARRAY(fout, mem->name);
         // WRITE_OPAQUE(fout, mem->borrow_count);
@@ -64,7 +65,7 @@ namespace Serialization
     }
 
     template<typename T = void>
-    void WriteMembers(ofstream& fout, const InventoryItem& item)
+    void WriteMembers(fstream& fout, const InventoryItem& item)
     {
         auto count_pos = fout.tellp();
 
@@ -90,10 +91,15 @@ namespace Serialization
     }
 
     template<typename T = void>
-    void WriteToFile(const Inventory& inv)
+    // void WriteToFile(const Inventory& inv)
+    void WriteToFile(fstream& fout, const Inventory& inv)
     {
         cout << "Writing" << endl;
-        std::ofstream fout(MAIN_FILE_NAME, ios::binary | ios::ate);
+
+        fout.clear();
+        fout.seekp(0, ios::beg);
+
+        // std::ofstream fout(MAIN_FILE_NAME, ios::binary | ios::ate);
     
         // WRITE_ARRAY(fout, MAGIC_BYTES);
         // WRITE_OPAQUE(fout, inv.count);
@@ -115,44 +121,129 @@ namespace Serialization
     /* --------------------------------------------------------------- */
 
     template <typename T>
-    inline void read_bytes(ifstream& fin, T& x)
+    inline bool read_bytes(fstream& fin, T& x)
     {
-        fin.read(TO_BYTES_R(&(x)), sizeof(x));
+        fin.read(TO_BYTES_R(&(x)), sizeof(T));
+        return !fin.fail();
     }
 
     template <typename T, size_t N>
-    inline void read_bytes(ifstream& fin, T (&x)[N])
+    inline bool read_bytes(fstream& fin, T (&x)[N])
     {
-        fin.read(TO_BYTES_R(x), sizeof(x));
+        fin.read(TO_BYTES_R(x), sizeof(T) * N);
+        return !fin.fail();
     }
 
-    inline bool check_bytes(ifstream& fin)
+    inline bool check_bytes(fstream& fin)
     {
         using bytes_t = std::remove_cv<decltype(MAGIC_BYTES)>::type;
         bytes_t file_bytes;
         fin.read(TO_BYTES_R(file_bytes), sizeof(file_bytes));
+
+        if (fin.fail())
+            return false;
+
         static constexpr size_t len = std::extent<bytes_t, 0>::value;
         return memcmp(file_bytes, MAGIC_BYTES, len) == 0;
     }
 
-    template<typename T = void>
-    bool ReadFromFile(Inventory& inv)
+    using DataFile = fstream*; 
+
+    inline DataFile OpenFile()
     {
+        auto f = new std::fstream();
+        f->open(MAIN_FILE_NAME, ios::binary | ios::out | ios::app);
+        f->close();
+
+        f->open(MAIN_FILE_NAME, ios::binary | ios::in | ios::out | ios::ate);
+
+        f->seekp(0, ios::beg);
+        f->seekg(0, ios::beg);
+
+        if (!(*f))
+        {
+            delete f;
+            return nullptr;
+        }
+
+        return f;
+    }
+
+    inline bool IsFileValid(DataFile f)
+    {
+        return check_bytes(*f);
+    }
+
+    inline void CloseFile(DataFile f)
+    {
+        delete f;
+    }
+
+    inline item_count_t ReadCount(DataFile f, bool seek = true)
+    {
+        if (seek)
+            f->seekg(sizeof(MAGIC_BYTES), ios::beg);
+
+        item_count_t count;
+        if (read_bytes(*f, count))
+            return count;
+
+        return -1;
+    }
+
+    template<typename T = void>
+    bool ReadItem(DataFile f, InventoryItem& item)
+    {
+        bool res = 1;
+
+        res &= read_bytes(*f, item.item_id);
+        res &= read_bytes(*f, item.meta);
+        res &= read_bytes(*f, item.item_count);
+        res &= read_bytes(*f, item.assigned_count);
+        res &= read_bytes(*f, item.active);
+
+        return res;
+    }
+
+    inline bool ReadItem(DataFile f, InventoryItem& item, size_t index)
+    {
+        f->seekg(sizeof(MAGIC_BYTES) + sizeof(item_count_t), ios::beg);
+        f->seekg(sizeof(InventoryItem) * index, ios::cur);
+        return ReadItem(f, item);
+    }
+
+    template<typename T = void>
+    bool ReadFromFile(DataFile f, Inventory& inv)
+    {
+
+#define ERROR() \
+    do { \
+        cout << "[WARN] Invalid or corrupted file -- Skipping" << endl; \
+        return false; \
+    } while (false)
+
         cout << "Reading\n" << endl;
-        std::ifstream fin(MAIN_FILE_NAME, ios::binary);
 
-        if (!fin)
+        auto count = ReadCount(f, false); 
+        if (count == -1)
+            ERROR();
+
+        cout << count << endl;
+
+        InvUtil_AllocateFor(inv, pow(2, ceil(log2(count))));
+
+        static InventoryItem item;
+        for (int i = 0; i < count; ++i)
         {
-            return false;
+            if (!ReadItem(f, item))
+                ERROR();
+
+            inv.items[i] = item;
         }
 
-        if (!check_bytes(fin))
-        {
-            cout << "Invalid file (magic bytes)" << endl;
-            return false;
-        }
+        inv.count = count;
 
-        return true;
+        return false;
     }
 
 } // namespace Serialization

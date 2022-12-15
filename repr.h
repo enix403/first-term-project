@@ -4,6 +4,7 @@
 #define __APP_REPR_H_
 
 #include <cstdint>
+#include <cstring>
 
 enum class K__Result
 {
@@ -62,5 +63,39 @@ struct Inventory
     uint32_t count;
     uint32_t capacity;
 };
+
+
+void InvUtil_AllocateFor(Inventory& inv, uint32_t capacity)
+{
+    if (capacity > inv.capacity)
+    {
+        auto old_list = inv.items;
+
+        // inv.capacity = grow(inv.capacity);
+        // inv.items = new InventoryItem[inv.capacity];
+        inv.items = new InventoryItem[capacity];
+        inv.capacity = capacity;
+
+        if (inv.count > 0)
+        {
+            memcpy(inv.items, old_list, sizeof(InventoryItem) * inv.count);
+
+            delete[] old_list;
+        }
+    }
+}
+
+InventoryItem* InvUtil_FindItemById(const Inventory& inv, item_id_t id, bool active_only)
+{
+    for (int i = 0; i < inv.count; ++i)
+    {
+        auto& item = inv.items[i];
+        if (item.item_id == id && (!active_only || item.active))
+            return &item;
+    }
+
+    return nullptr;
+}
+
 
 #endif

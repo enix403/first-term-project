@@ -13,7 +13,7 @@
 DisableFormat: false
 
 Language: Cpp
-Standard: c++14
+Standard: c++17
 ColumnLimit: 120
 MaxEmptyLinesToKeep: 3
 

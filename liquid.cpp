@@ -192,8 +192,29 @@ int main()
     // clang-format on
 #endif
 
-    // Serialization::WriteToFile(inv);
-    Serialization::ReadFromFile(inv);
+    auto file = Serialization::OpenFile();
+    {
+        using namespace Serialization;
+        if (file == nullptr)
+        {
+            cout << "[ERROR] Unable to open file" << endl;
+            return 1;
+        }
+
+        if (IsFileValid(file))
+        {
+            if (!ReadFromFile(file, inv))
+            {
+                // Reset in case of failed read
+                FreeInventory(&inv);
+                InitInventory(&inv);
+            }
+        }
+    }
+
+    cout << "\n";
+    InvUserActions::ViewItems(inv);
+
 
     bool first_tick = true;
 
@@ -218,6 +239,8 @@ int main()
     }
 
     OnBeforeQuit(inv);
+    Serialization::CloseFile(file);
+    
     FreeInventory(&inv);
 
     return 0;
@@ -414,6 +437,7 @@ Select an option:
 
 } // namespace Frontend
 
+
 namespace InvUserActions
 {
     static const char* IDN = " >> ";
@@ -469,19 +493,7 @@ namespace InvUserActions
         cout << "\n";
 
         if (inv.count == inv.capacity)
-        {
-            auto old_list = inv.items;
-
-            inv.capacity = grow(inv.capacity);
-            inv.items = new InventoryItem[inv.capacity];
-
-            if (inv.count > 0)
-            {
-                memcpy(inv.items, old_list, sizeof(InventoryItem) * inv.count);
-
-                delete[] old_list;
-            }
-        }
+            InvUtil_AllocateFor(inv, grow(inv.capacity));
 
         InventoryItem& slot = inv.items[inv.count++];
 
@@ -690,18 +702,6 @@ namespace InvUserActions
         return K__Result::Ok;
     }
 }; // namespace InvUserActions
-
-InventoryItem* InvUtil_FindItemById(const Inventory& inv, item_id_t id, bool active_only)
-{
-    for (int i = 0; i < inv.count; ++i)
-    {
-        auto& item = inv.items[i];
-        if (item.item_id == id && (!active_only || item.active))
-            return &item;
-    }
-
-    return nullptr;
-}
 
 Member* FindMemberByName(Member* head, const char* name)
 {
