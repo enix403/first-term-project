@@ -158,7 +158,7 @@ int main()
     Inventory inv;
     InitInventory(&inv);
 
-#if 1
+#if 0
     // clang-format off
     inv.items[inv.count++] = { .item_id = 1, .meta={ "Item 1", IC_MACHINERY }, .item_count = 41 };
     inv.items[inv.count++] = { .item_id = 2, .meta={ "Item 2", IC_MACHINERY }, .item_count = 41 };
@@ -192,7 +192,8 @@ int main()
     // clang-format on
 #endif
 
-    Serialization::WriteToFile(inv);    
+    // Serialization::WriteToFile(inv);
+    Serialization::ReadFromFile(inv);
 
     bool first_tick = true;
 

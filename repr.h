@@ -47,8 +47,10 @@ struct InventoryItem
     ItemMeta meta {};
     item_count_t item_count = 0;
     item_count_t assigned_count = 0;
-    Member* allocated_to = nullptr;
     bool active = true;
+
+    // Do not reorder allocated_to from being the last field
+    Member* allocated_to = nullptr;
 };
 
 // auto __trival = std::is_trivially_copyable<InventoryItem>::value;

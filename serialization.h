@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include <cstdint>
+#include <cstring>
 
 #include "repr.h"
 
@@ -20,7 +21,13 @@ namespace Serialization
         0x59, 0x53, 0x54, 0x45, 0x4D, 0x41, 0x42, 0x43,
     }; // hexdump of "INVMGMTSYSTEMABC"
 
+
+    /* --------------------------------------------------------------- */
+    /* --------------------------- WRITING --------------------------- */
+    /* --------------------------------------------------------------- */
+
 #define TO_BYTES(ptr) reinterpret_cast<const char*>(ptr)
+#define TO_BYTES_R(ptr) reinterpret_cast<char*>(ptr)
 
     template <typename T>
     inline void write_bytes(ofstream& fout, const T& x)
@@ -40,7 +47,12 @@ namespace Serialization
     inline void WriteItem(ofstream& fout, const InventoryItem& item)
     {
         // WRITE_OPAQUE(fout, item);
-        write_bytes(fout, item);
+        // write_bytes(fout, item);
+        write_bytes(fout, item.item_id);
+        write_bytes(fout, item.meta);
+        write_bytes(fout, item.item_count);
+        write_bytes(fout, item.assigned_count);
+        write_bytes(fout, item.active);
     }
 
     inline void WriteSingleMember(ofstream& fout, const Member* mem)
@@ -97,6 +109,52 @@ namespace Serialization
 
         fout.close();
     }
+
+    /* --------------------------------------------------------------- */
+    /* --------------------------- READING --------------------------- */
+    /* --------------------------------------------------------------- */
+
+    template <typename T>
+    inline void read_bytes(ifstream& fin, T& x)
+    {
+        fin.read(TO_BYTES_R(&(x)), sizeof(x));
+    }
+
+    template <typename T, size_t N>
+    inline void read_bytes(ifstream& fin, T (&x)[N])
+    {
+        fin.read(TO_BYTES_R(x), sizeof(x));
+    }
+
+    inline bool check_bytes(ifstream& fin)
+    {
+        using bytes_t = std::remove_cv<decltype(MAGIC_BYTES)>::type;
+        bytes_t file_bytes;
+        fin.read(TO_BYTES_R(file_bytes), sizeof(file_bytes));
+        static constexpr size_t len = std::extent<bytes_t, 0>::value;
+        return memcmp(file_bytes, MAGIC_BYTES, len) == 0;
+    }
+
+    template<typename T = void>
+    bool ReadFromFile(Inventory& inv)
+    {
+        cout << "Reading\n" << endl;
+        std::ifstream fin(MAIN_FILE_NAME, ios::binary);
+
+        if (!fin)
+        {
+            return false;
+        }
+
+        if (!check_bytes(fin))
+        {
+            cout << "Invalid file (magic bytes)" << endl;
+            return false;
+        }
+
+        return true;
+    }
+
 } // namespace Serialization
 
 #endif
