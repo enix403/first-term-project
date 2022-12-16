@@ -12,17 +12,13 @@
 
 using namespace std;
 
-static void Welcome();
-static void OnBeforeQuit(Serialization::DataFile f, Inventory& inv);
-
-static void InitInventory(Inventory* inv);
-static void FreeInventory(Inventory* inv);
-
-enum class ACResult
+namespace Lifecycle
 {
-    Ok = 0,
-    Failed,
-    Unrecoverable
+    static void Welcome();
+    static void OnBeforeQuit(Serialization::DataFile f, Inventory& inv);
+
+    static void InitInventory(Inventory* inv);
+    static void FreeInventory(Inventory* inv);
 };
 
 namespace Input
@@ -39,33 +35,26 @@ namespace Frontend
     {
         Quit = 0,
 
-        AddItem,        /* <- */
+        AddItem,
         ViewItems,
         SearchItem,
-        EditItem,       /* <- */
-        DeleteItem,     /* <- */
-        AssignItem,     /* <- */
-        RetrieveItem,   /* <- */
+        EditItem,
+        DeleteItem,
+        AssignItem,
+        RetrieveItem,
         ItemDetails,
+    };
+
+    enum class ACResult
+    {
+        Ok = 0,
+        Failed,
+        Unrecoverable
     };
 
     MenuAction  RequestAction();
     ACResult    HandleAction(Inventory& inv, MenuAction action);
-}; // namespace Frontend
 
-namespace Internal {
-
-    static InventoryItem*   FindItemById(const Inventory& inv, item_id_t id, bool active_only = true);
-    static Member*          FindMemberByName(Member* head, const char* name);
-
-    static void Add(Inventory& inv, item_id_t id, item_count_t icount, const ItemMeta& meta);   
-    static void Delete(Inventory& inv, InventoryItem* item);
-    static void Assign(InventoryItem* item, const char* name);
-    static void Retrieve(InventoryItem* item, Member* entry);  
-}
-
-namespace Core
-{
     ACResult AddItem(Inventory& inv);
     ACResult ViewItems(Inventory& inv);
     ACResult SearchItem(Inventory& inv);
@@ -74,49 +63,47 @@ namespace Core
     ACResult AssignItem(Inventory& inv);
     ACResult RetrieveItem(Inventory& inv);
     ACResult ItemDetails(Inventory& inv);
-}; // namespace Core
+}; // namespace Frontend
+
+namespace Core {
+
+    static InventoryItem*   FindItemById(const Inventory& inv, item_id_t id, bool active_only = true);
+    static Member*          FindMemberByName(Member* head, const char* name);
+
+    static void Add(Inventory& inv, item_id_t id, item_count_t icount, const ItemMeta& meta);   
+    static void Delete(Inventory& inv, InventoryItem* item);
+    static void Assign(InventoryItem* item, const char* name);
+    static void Assign(Inventory& inv, item_id_t id, const char* name);
+    static void Retrieve(InventoryItem* item, Member* entry);  
+}
 
 int main()
 {
     std::ios::sync_with_stdio(false);
 
-    // Welcome();
+    // Lifecycle::Welcome();
 
     Inventory inv;
-    InitInventory(&inv);
+    Lifecycle::InitInventory(&inv);
 
 #if 0
-    // clang-format off
-    inv.items[inv.count++] = { .item_id = 1, .meta={ "Item 1", IC_MACHINERY }, .item_count = 41 };
-    inv.items[inv.count++] = { .item_id = 2, .meta={ "Item 2", IC_MACHINERY }, .item_count = 41 };
-    inv.items[inv.count++] = { .item_id = 3, .meta={ "Item 3", IC_MACHINERY }, .item_count = 41 };
-    inv.items[inv.count++] = { .item_id = 4, .meta={ "Item 4", IC_MACHINERY }, .item_count = 41 };
-    inv.items[inv.count++] = { .item_id = 5, .meta={ "Item 5", IC_MACHINERY }, .item_count = 41 };
-    inv.items[inv.count++] = { .item_id = 6, .meta={ "Item 6", IC_MACHINERY }, .item_count = 41 };
+    Core::Add(inv, 1, 41, { "Test Item 1", IC_MACHINERY });
+    Core::Add(inv, 2, 41, { "Test Item 1", IC_MACHINERY });
+    Core::Add(inv, 3, 41, { "Test Item 1", IC_MACHINERY });
+    Core::Add(inv, 4, 41, { "Test Item 1", IC_MACHINERY });
+    Core::Add(inv, 5, 41, { "Test Item 1", IC_MACHINERY });
+    Core::Add(inv, 6, 41, { "Test Item 1", IC_MACHINERY });
 
-    impl_assign(&inv.items[2], "abc");
-    impl_assign(&inv.items[2], "def");
+    Core::Assign(inv, 3, "abc");
+    Core::Assign(inv, 3, "def");
 
-    impl_assign(&inv.items[3], "abc");
-    impl_assign(&inv.items[3], "Hello");
-    impl_assign(&inv.items[3], "Hello 2");
-    impl_assign(&inv.items[3], "Hello");
+    Core::Assign(inv, 4, "abc");
+    Core::Assign(inv, 4, "Hello");
+    Core::Assign(inv, 4, "Hello 2");
+    Core::Assign(inv, 4, "Hello");
 
-    impl_assign(&inv.items[4], "LMN");
-    impl_assign(&inv.items[5], "OPQ");
-
-    // clang-format on
-#endif
-#if 0
-    // clang-format off
-    inv.items[inv.count++] = { .item_id = 4, .meta={ "Item 4", IC_MACHINERY }, .item_count = 41 };
-
-    impl_assign(&inv.items[0], "abc");
-    impl_assign(&inv.items[0], "Hello");
-    impl_assign(&inv.items[0], "Hello 2");
-    impl_assign(&inv.items[0], "Hello");
-
-    // clang-format on
+    Core::Assign(inv, 5, "LMN");
+    Core::Assign(inv, 6, "OPQ");
 #endif
 
     auto file = Serialization::OpenFile();
@@ -135,8 +122,8 @@ int main()
                 cout << "[WARN] Invalid or corrupted file -- Skipping" << endl; \
 
                 // Reset in case of failed read
-                FreeInventory(&inv);
-                InitInventory(&inv);
+                Lifecycle::FreeInventory(&inv);
+                Lifecycle::InitInventory(&inv);
             }
         }
     }
@@ -145,6 +132,8 @@ int main()
 
     for (;;)
     {
+        using namespace Frontend;
+
         if (!first_tick)
         {
             cout << "----------------------------";
@@ -153,47 +142,50 @@ int main()
 
         first_tick = false;
 
-        auto action = Frontend::RequestAction();
+        auto action = RequestAction();
 
-        if (action == Frontend::MenuAction::Quit)
+        if (action == MenuAction::Quit)
         {
             break;
         }
 
-        if (Frontend::HandleAction(inv, action) == ACResult::Ok)
+        if (HandleAction(inv, action) == ACResult::Ok)
             Serialization::WriteToFile(file, inv);
     }
 
-    OnBeforeQuit(file, inv);
+    Lifecycle::OnBeforeQuit(file, inv);
     Serialization::CloseFile(file);
 
-    FreeInventory(&inv);
+    Lifecycle::FreeInventory(&inv);
 
     return 0;
 }
 
-static inline void Welcome()
+namespace Lifecycle
 {
-    cout << "* Welcome to PUCIT Inventory Management System *\n" << endl;
-}
+    static inline void Welcome()
+    {
+        cout << "* Welcome to PUCIT Inventory Management System *\n" << endl;
+    }
 
-static void OnBeforeQuit(Serialization::DataFile f, Inventory& inv)
-{
-    Serialization::WriteToFile(f, inv);
-}
+    static void OnBeforeQuit(Serialization::DataFile f, Inventory& inv)
+    {
+        Serialization::WriteToFile(f, inv);
+    }
 
-void InitInventory(Inventory* inv)
-{
-    inv->count = 0;
-    inv->capacity = 256;
-    inv->items = new InventoryItem[inv->capacity];
-}
+    void InitInventory(Inventory* inv)
+    {
+        inv->count = 0;
+        inv->capacity = 256;
+        inv->items = new InventoryItem[inv->capacity];
+    }
 
-void FreeInventory(Inventory* inv)
-{
-    /* TODO: free nested member lists */
-    delete inv->items;
-}
+    void FreeInventory(Inventory* inv)
+    {
+        /* TODO: free nested member lists */
+        delete inv->items;
+    }
+};
 
 namespace Input
 {
@@ -267,7 +259,7 @@ namespace Input
             return nullptr;
         }
 
-        auto itemptr = Internal::FindItemById(inv, (item_id_t) id_);
+        auto itemptr = Core::FindItemById(inv, (item_id_t) id_);
 
         if (show_error && itemptr == nullptr)
         {
@@ -279,78 +271,6 @@ namespace Input
     }
 
 }; // namespace Input
-
-namespace Frontend
-{
-    static const char* menu_ = 1 + (const char*) R"(
-Select an option:
-    [0] Quit 
-    [1] Add a New tem
-    [2] View Added Items
-    [3] Search Item By Name
-    [4] Edit an Existing Item
-    [5] Delete an Existing Item
-    [6] Assign an Existing Item to a Member
-    [7] Retrieve an Existing Item from a Member
-    [8] Show Details of a Specifc Item
-)";
-
-    MenuAction RequestAction()
-    {
-        cout << menu_ << endl;
-
-        int op;
-
-        while (true)
-        {
-            cout << "> Choose option [0-8]: ";
-
-            bool valid = false;
-            op = Input::integer();
-
-            if (cin.eof())
-                return MenuAction::Quit;
-
-            if (op >= 0 && op <= 8)
-                valid = true;
-
-            if (valid)
-                break;
-            else
-                cout << "[ERROR] * Invalid choice. Try again *" << endl;
-        }
-
-        return static_cast<MenuAction>(op);
-    }
-
-    ACResult HandleAction(Inventory& inv, MenuAction action)
-    {
-        cout << "\n";
-
-        ACResult result = ACResult::Failed;
-
-        switch (action)
-        {
-            case MenuAction::AddItem:           result = Core::AddItem(inv);           break;
-            case MenuAction::ViewItems:         result = Core::ViewItems(inv);         break;
-            case MenuAction::SearchItem:        result = Core::SearchItem(inv);        break;
-            case MenuAction::EditItem:          result = Core::EditItem(inv);          break;
-            case MenuAction::DeleteItem:        result = Core::DeleteItem(inv);        break;
-            case MenuAction::AssignItem:        result = Core::AssignItem(inv);        break;
-            case MenuAction::RetrieveItem:      result = Core::RetrieveItem(inv);      break;
-            case MenuAction::ItemDetails:       result = Core::ItemDetails(inv);       break;
-
-            default:
-                break;
-        }
-
-        cout << endl;
-
-        return result;
-    }
-
-} // namespace Frontend
-
 
 namespace DisplayItem
 {
@@ -416,7 +336,78 @@ namespace DisplayItem
     }
 };
 
-namespace Core
+namespace Frontend
+{
+    static const char* menu_ = 1 + (const char*) R"(
+Select an option:
+    [0] Quit 
+    [1] Add a New tem
+    [2] View Added Items
+    [3] Search Item By Name
+    [4] Edit an Existing Item
+    [5] Delete an Existing Item
+    [6] Assign an Existing Item to a Member
+    [7] Retrieve an Existing Item from a Member
+    [8] Show Details of a Specifc Item
+)";
+
+    MenuAction RequestAction()
+    {
+        cout << menu_ << endl;
+
+        int op;
+
+        while (true)
+        {
+            cout << "> Choose option [0-8]: ";
+
+            bool valid = false;
+            op = Input::integer();
+
+            if (cin.eof())
+                return MenuAction::Quit;
+
+            if (op >= 0 && op <= 8)
+                valid = true;
+
+            if (valid)
+                break;
+            else
+                cout << "[ERROR] * Invalid choice. Try again *" << endl;
+        }
+
+        return static_cast<MenuAction>(op);
+    }
+
+    ACResult HandleAction(Inventory& inv, MenuAction action)
+    {
+        cout << "\n";
+
+        ACResult result = ACResult::Failed;
+
+        switch (action)
+        {
+            case MenuAction::AddItem:      result = Frontend::AddItem(inv);      break;
+            case MenuAction::ViewItems:    result = Frontend::ViewItems(inv);    break;
+            case MenuAction::SearchItem:   result = Frontend::SearchItem(inv);   break;
+            case MenuAction::EditItem:     result = Frontend::EditItem(inv);     break;
+            case MenuAction::DeleteItem:   result = Frontend::DeleteItem(inv);   break;
+            case MenuAction::AssignItem:   result = Frontend::AssignItem(inv);   break;
+            case MenuAction::RetrieveItem: result = Frontend::RetrieveItem(inv); break;
+            case MenuAction::ItemDetails:  result = Frontend::ItemDetails(inv);  break;
+
+            default:
+                break;
+        }
+
+        cout << endl;
+
+        return result;
+    }
+
+} // namespace Frontend
+
+namespace Frontend
 {
     static const char* IDN = " >> ";
 
@@ -438,7 +429,7 @@ namespace Core
 
             id = id_;
 
-            if (Internal::FindItemById(inv, id) != nullptr)
+            if (Core::FindItemById(inv, id) != nullptr)
             {
                 cout << "\n[ERROR] * Item with id " << id << " already exists. *\n"
                      << "        * Failed to add item *\n";
@@ -470,7 +461,7 @@ namespace Core
 
         cout << "\n";
 
-        Internal::Add(inv, id, icount, meta);
+        Core::Add(inv, id, icount, meta);
 
         cout << "Item \"" << meta.name << "\" added successfully\n";
 
@@ -581,7 +572,7 @@ namespace Core
 
         cout << "\n";
 
-        Internal::Delete(inv, item);
+        Core::Delete(inv, item);
 
         cout << "Item \"" << item->meta.name << "\" with id " << item->item_id << " deleted successfully\n";
 
@@ -609,7 +600,7 @@ namespace Core
 
         cout << "\n";
 
-        Internal::Assign(item, name);
+        Core::Assign(item, name);
 
         cout
             << "Item \"" << item->meta.name
@@ -647,7 +638,7 @@ namespace Core
             entry = entry->next;
 
         /* TODO: check for unreachable case of entry->borrow_count == 0 */
-        Internal::Retrieve(item, entry);
+        Core::Retrieve(item, entry);
 
         cout
             << "Item \"" << item->meta.name << "\" retrieved successfully\n";
@@ -667,7 +658,7 @@ namespace Core
     }
 }; // namespace Core
 
-namespace Internal {
+namespace Core {
 
     InventoryItem* FindItemById(const Inventory& inv, item_id_t id, bool active_only)
     {
@@ -737,6 +728,13 @@ namespace Internal {
         ++entry->borrow_count;
         ++item->assigned_count;
         --item->item_count;
+    }
+
+    static inline void Assign(Inventory& inv, item_id_t id, const char* name)
+    {
+        auto item = FindItemById(inv, id);
+        if (item != nullptr)
+            Assign(item, name);
     }
 
     static void Retrieve(InventoryItem* item, Member* entry)
