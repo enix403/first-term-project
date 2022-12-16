@@ -131,10 +131,10 @@ namespace Serialization
 
     inline DataFile OpenFile()
     {
-        auto f = new std::fstream();
-        f->open(MAIN_FILE_NAME, ios::binary | ios::out | ios::app);
-        f->close();
+        /* Create the file if it does not exist */
+        { std::ofstream(MAIN_FILE_NAME, ios::binary | ios::out | ios::app); }
 
+        auto f = new std::fstream();
         f->open(MAIN_FILE_NAME, ios::binary | ios::in | ios::out | ios::ate);
 
         f->seekp(0, ios::beg);

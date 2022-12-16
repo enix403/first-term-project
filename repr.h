@@ -6,13 +6,6 @@
 #include <cstdint>
 #include <cstring>
 
-enum class K__Result
-{
-    Ok = 0,
-    Failed,
-    Unrecoverable
-};
-
 enum ItemCategory
 {
     IC_STATIONARY,
@@ -107,7 +100,6 @@ void InvUtil_AllocateFor(Inventory& inv, uint32_t capacity)
     }
 }
 
-// InventoryItem* InvUtil_FindItemById(const Inventory& inv, item_id_t id, bool active_only = true);
 InventoryItem* InvUtil_FindItemById(const Inventory& inv, item_id_t id, bool active_only = true)
 {
     for (int i = 0; i < inv.count; ++i)

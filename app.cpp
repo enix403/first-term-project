@@ -12,119 +12,62 @@
 
 using namespace std;
 
+static void Welcome();
+static void OnBeforeQuit(Serialization::DataFile f, Inventory& inv);
+
 static void InitInventory(Inventory* inv);
 static void FreeInventory(Inventory* inv);
 
-static inline void Welcome();
-static void OnBeforeQuit(Serialization::DataFile f, Inventory& inv);
+void impl_assign(InventoryItem* item, const char* name);
+void impl_retrieve(InventoryItem* item, Member* entry);
+
+enum class ACResult
+{
+    Ok = 0,
+    Failed,
+    Unrecoverable
+};
 
 namespace Input
 {
     int64_t             integer(bool allow_empty = false);
     bool                entity_name(char* target, size_t max_len, bool allow_empty = false);
-    InventoryItem*      identitfied_item(const Inventory& inv, bool show_error = true);
+    InventoryItem*      identitfied_item(Inventory& inv, bool show_error = true);
 }; // namespace Input
-
-namespace InvUserActions
-{
-    K__Result AddItem(Inventory& inv);
-    K__Result ViewItems(Inventory& inv);
-    K__Result SearchItem(Inventory& inv);
-    K__Result EditItem(Inventory& inv);
-    K__Result DeleteItem(Inventory& inv);
-    K__Result AssignItem(Inventory& inv);
-    K__Result RetrieveItem(Inventory& inv);
-    K__Result ItemDetails(Inventory& inv);
-}; // namespace InvUserActions
 
 
 namespace Frontend
 {
-    enum class Action
+    enum class MenuAction
     {
         Quit = 0,
 
-        AddItem,
+        AddItem,        /* <- */
         ViewItems,
         SearchItem,
-        EditItem,
-        DeleteItem,
-        AssignItem,
-        RetrieveItem,
+        EditItem,       /* <- */
+        DeleteItem,     /* <- */
+        AssignItem,     /* <- */
+        RetrieveItem,   /* <- */
         ItemDetails,
     };
 
-    namespace DisplayItem
-    {
-        static constexpr int w1 =  6;
-        static constexpr int w2 = 18;
-        static constexpr int w3 = 18;
-        static constexpr int w4 = 18;
-
-        static inline void Header()
-        {
-            cout
-                << std::setw(w1) << std::left << "ID"
-                << std::setw(w2) << std::left << "Name"
-                << std::setw(w3) << std::left << "Units Available"
-                << std::setw(w4) << std::left << "Units Assigned"
-            << "\n";
-
-            cout
-                << std::setw(w1 + w2 + w3 + w4)
-                << std::setfill('-') << "" << "\n" << std::setfill(' ');
-        }
-
-        static inline void Summary(InventoryItem& item)
-        {
-            cout
-                << std::setw(w1) << std::left << item.item_id
-                << std::setw(w2) << std::left << item.meta.name
-                << std::setw(w3) << std::left << item.item_count
-                << std::setw(w4) << std::left << item.assigned_count
-                << "\n";
-        }
-
-        static inline uint32_t MemList(InventoryItem& item)
-        {
-            auto mem = item.allocated_to;
-            int i = 0;
-            if (mem != nullptr)
-            {
-                cout << "\nAssigned To: \n";
-                while (mem != nullptr)
-                {
-                    cout
-                        << "   > " << ++i << ". "
-                        << mem->name << " | "
-                        << mem->borrow_count << " unit(s) assigned" << "\n"; 
-                    mem = mem->next;
-                }
-            }
-
-            return i;
-        }
-
-        uint32_t Full(InventoryItem& item)
-        {
-            Header();
-            Summary(item);
-            return MemList(item);
-        }
-
-        inline static void Compact(InventoryItem& item)
-        {
-            Summary(item);
-        }
-    };
-
-    Action RequestAction();
-    K__Result HandleAction(Inventory& inv, Action action);
-
+    MenuAction  RequestAction();
+    ACResult    HandleAction(Inventory& inv, MenuAction action);
 }; // namespace Frontend
 
-void impl_assign(InventoryItem* item, const char* name);
-void impl_retrieve(InventoryItem* item, Member* entry);
+
+namespace Core
+{
+    ACResult AddItem(Inventory& inv);
+    ACResult ViewItems(Inventory& inv);
+    ACResult SearchItem(Inventory& inv);
+    ACResult EditItem(Inventory& inv);
+    ACResult DeleteItem(Inventory& inv);
+    ACResult AssignItem(Inventory& inv);
+    ACResult RetrieveItem(Inventory& inv);
+    ACResult ItemDetails(Inventory& inv);
+}; // namespace Core
 
 int main()
 {
@@ -205,12 +148,12 @@ int main()
 
         auto action = Frontend::RequestAction();
 
-        if (action == Frontend::Action::Quit)
+        if (action == Frontend::MenuAction::Quit)
         {
             break;
         }
 
-        if (Frontend::HandleAction(inv, action) == K__Result::Ok)
+        if (Frontend::HandleAction(inv, action) == ACResult::Ok)
             Serialization::WriteToFile(file, inv);
     }
 
@@ -220,6 +163,16 @@ int main()
     FreeInventory(&inv);
 
     return 0;
+}
+
+static inline void Welcome()
+{
+    cout << "* Welcome to PUCIT Inventory Management System *\n" << endl;
+}
+
+static void OnBeforeQuit(Serialization::DataFile f, Inventory& inv)
+{
+    Serialization::WriteToFile(f, inv);
 }
 
 void InitInventory(Inventory* inv)
@@ -235,19 +188,9 @@ void FreeInventory(Inventory* inv)
     delete inv->items;
 }
 
-static inline void Welcome()
-{
-    cout << "* Welcome to PUCIT Inventory Management System *\n" << endl;
-}
-
-static void OnBeforeQuit(Serialization::DataFile f, Inventory& inv)
-{
-    Serialization::WriteToFile(f, inv);
-}
-
 namespace Input
 {
-    constexpr streamsize max_ssz = std::numeric_limits<streamsize>::max();
+    static constexpr streamsize max_ssz = std::numeric_limits<streamsize>::max();
 
     int64_t integer(bool allow_empty)
     {
@@ -307,7 +250,7 @@ namespace Input
         return true;
     }
 
-    InventoryItem* identitfied_item(const Inventory& inv, bool show_error)
+    InventoryItem* identitfied_item(Inventory& inv, bool show_error)
     {
         auto id_ = Input::integer();
 
@@ -345,7 +288,7 @@ Select an option:
     [8] Show Details of a Specifc Item
 )";
 
-    Action RequestAction()
+    MenuAction RequestAction()
     {
         cout << menu_ << endl;
 
@@ -359,7 +302,7 @@ Select an option:
             op = Input::integer();
 
             if (cin.eof())
-                return Action::Quit;
+                return MenuAction::Quit;
 
             if (op >= 0 && op <= 8)
                 valid = true;
@@ -370,25 +313,25 @@ Select an option:
                 cout << "[ERROR] * Invalid choice. Try again *" << endl;
         }
 
-        return static_cast<Action>(op);
+        return static_cast<MenuAction>(op);
     }
 
-    K__Result HandleAction(Inventory& inv, Action action)
+    ACResult HandleAction(Inventory& inv, MenuAction action)
     {
         cout << "\n";
 
-        K__Result result = K__Result::Failed;
+        ACResult result = ACResult::Failed;
 
         switch (action)
         {
-            case Action::AddItem:           result = InvUserActions::AddItem(inv);           break;
-            case Action::ViewItems:         result = InvUserActions::ViewItems(inv);         break;
-            case Action::SearchItem:        result = InvUserActions::SearchItem(inv);        break;
-            case Action::EditItem:          result = InvUserActions::EditItem(inv);          break;
-            case Action::DeleteItem:        result = InvUserActions::DeleteItem(inv);        break;
-            case Action::AssignItem:        result = InvUserActions::AssignItem(inv);        break;
-            case Action::RetrieveItem:      result = InvUserActions::RetrieveItem(inv);      break;
-            case Action::ItemDetails:       result = InvUserActions::ItemDetails(inv);       break;
+            case MenuAction::AddItem:           result = Core::AddItem(inv);           break;
+            case MenuAction::ViewItems:         result = Core::ViewItems(inv);         break;
+            case MenuAction::SearchItem:        result = Core::SearchItem(inv);        break;
+            case MenuAction::EditItem:          result = Core::EditItem(inv);          break;
+            case MenuAction::DeleteItem:        result = Core::DeleteItem(inv);        break;
+            case MenuAction::AssignItem:        result = Core::AssignItem(inv);        break;
+            case MenuAction::RetrieveItem:      result = Core::RetrieveItem(inv);      break;
+            case MenuAction::ItemDetails:       result = Core::ItemDetails(inv);       break;
 
             default:
                 break;
@@ -402,11 +345,75 @@ Select an option:
 } // namespace Frontend
 
 
-namespace InvUserActions
+namespace DisplayItem
+{
+    static constexpr int w1 =  6;
+    static constexpr int w2 = 18;
+    static constexpr int w3 = 18;
+    static constexpr int w4 = 18;
+
+    static inline void Header()
+    {
+        cout
+            << std::setw(w1) << std::left << "ID"
+            << std::setw(w2) << std::left << "Name"
+            << std::setw(w3) << std::left << "Units Available"
+            << std::setw(w4) << std::left << "Units Assigned"
+        << "\n";
+
+        cout
+            << std::setw(w1 + w2 + w3 + w4)
+            << std::setfill('-') << "" << "\n" << std::setfill(' ');
+    }
+
+    static inline void Summary(InventoryItem& item)
+    {
+        cout
+            << std::setw(w1) << std::left << item.item_id
+            << std::setw(w2) << std::left << item.meta.name
+            << std::setw(w3) << std::left << item.item_count
+            << std::setw(w4) << std::left << item.assigned_count
+            << "\n";
+    }
+
+    static inline uint32_t MemList(InventoryItem& item)
+    {
+        auto mem = item.allocated_to;
+        int i = 0;
+        if (mem != nullptr)
+        {
+            cout << "\nAssigned To: \n";
+            while (mem != nullptr)
+            {
+                cout
+                    << "   > " << ++i << ". "
+                    << mem->name << " | "
+                    << mem->borrow_count << " unit(s) assigned" << "\n"; 
+                mem = mem->next;
+            }
+        }
+
+        return i;
+    }
+
+    uint32_t Full(InventoryItem& item)
+    {
+        Header();
+        Summary(item);
+        return MemList(item);
+    }
+
+    inline static void Compact(InventoryItem& item)
+    {
+        Summary(item);
+    }
+};
+
+namespace Core
 {
     static const char* IDN = " >> ";
 
-    K__Result AddItem(Inventory& inv)
+    ACResult AddItem(Inventory& inv)
     {
         item_id_t id;
         item_count_t icount;
@@ -419,7 +426,7 @@ namespace InvUserActions
             if (id_ == -1)
             {
                 cout << "\n[ERROR] * Invalid id *" << '\n';
-                return K__Result::Failed;
+                return ACResult::Failed;
             }
 
             id = id_;
@@ -429,14 +436,14 @@ namespace InvUserActions
                 cout << "\n[ERROR] * Item with id " << id << " already exists. *\n"
                      << "        * Failed to add item *\n";
 
-                return K__Result::Failed;
+                return ACResult::Failed;
             }
         }
 
         {
             cout << IDN << "Enter Item name: ";
             if (!Input::entity_name(meta.name, MAX_NAME_LEN))
-                return K__Result::Failed;
+                return ACResult::Failed;
         }
 
         {
@@ -446,7 +453,7 @@ namespace InvUserActions
             if (ic == -1)
             {
                 cout << "\n[ERROR] * Invalid input *" << '\n';
-                return K__Result::Failed;
+                return ACResult::Failed;
             }
 
             icount = ic;
@@ -472,18 +479,18 @@ namespace InvUserActions
 
         cout << "Item \"" << meta.name << "\" added successfully\n";
 
-        return K__Result::Ok;
+        return ACResult::Ok;
     }
 
-    K__Result ViewItems(Inventory& inv)
+    ACResult ViewItems(Inventory& inv)
     {
         if (inv.count == 0)
         {
             cout << "*No items added*\n";
-            return K__Result::Failed;
+            return ACResult::Failed;
         }
 
-        Frontend::DisplayItem::Header();
+        DisplayItem::Header();
 
         for (int i = 0; i < inv.count; ++i)
         {
@@ -492,13 +499,13 @@ namespace InvUserActions
             if (!item.active)
                 continue;
 
-            Frontend::DisplayItem::Compact(item);
+            DisplayItem::Compact(item);
         }
 
-        return K__Result::Ok;
+        return ACResult::Ok;
     }
 
-    K__Result SearchItem(Inventory& inv)
+    ACResult SearchItem(Inventory& inv)
     {
         cout << IDN << "Enter Item Name: ";
         string str;
@@ -513,46 +520,46 @@ namespace InvUserActions
             if (item.active && item.meta.name == str)
             {
                 ++count;
-                Frontend::DisplayItem::Full(inv.items[i]);
+                DisplayItem::Full(inv.items[i]);
             }
         }
 
         if (count == 0)
         {
             cout << "*No items found*\n";
-            return K__Result::Failed;
+            return ACResult::Failed;
         }
 
-        return K__Result::Ok;
+        return ACResult::Ok;
     }
 
 #define SELECT_ITEM(inv, item) \
     { \
-        K__Result res; \
-        if ((res = ViewItems(inv)) != K__Result::Ok) \
+        ACResult res; \
+        if ((res = ViewItems(inv)) != ACResult::Ok) \
             return res; \
         cout << "\n"; \
     } \
     cout << IDN << "Enter Item Id: "; \
     auto item = Input::identitfied_item(inv); \
     if (item == nullptr) \
-        return K__Result::Failed; \
+        return ACResult::Failed; \
 
-    K__Result EditItem(Inventory& inv)
+    ACResult EditItem(Inventory& inv)
     {
         SELECT_ITEM(inv, item);
 
         cout << IDN << "Enter Item's new name (press enter to keep original): ";
         static name_str_t name;
         if (!Input::entity_name(name, MAX_NAME_LEN, true))
-            return K__Result::Failed;
+            return ACResult::Failed;
 
         cout << IDN << "Enter Item's available unit count (press enter to keep original): ";
         auto ic = Input::integer(true);
         if (ic == -1)
         {
             cout << "\n[ERROR] * Invalid input *" << '\n';
-            return K__Result::Failed;
+            return ACResult::Failed;
         }
 
         cout << "\n";
@@ -567,15 +574,15 @@ namespace InvUserActions
 
         cout << "Item saved successfully\n";
 
-        return K__Result::Ok;
+        return ACResult::Ok;
     }
 
-    K__Result DeleteItem(Inventory& inv)
+    ACResult DeleteItem(Inventory& inv)
     {
         SELECT_ITEM(inv, item);
 
         if (item == nullptr)
-            return K__Result::Failed;
+            return ACResult::Failed;
 
         cout << "\n";
 
@@ -583,10 +590,10 @@ namespace InvUserActions
 
         cout << "Item \"" << item->meta.name << "\" with id " << item->item_id << " deleted successfully\n";
 
-        return K__Result::Ok;
+        return ACResult::Ok;
     }
 
-    K__Result AssignItem(Inventory& inv)
+    ACResult AssignItem(Inventory& inv)
     {
         SELECT_ITEM(inv, item);
 
@@ -597,13 +604,13 @@ namespace InvUserActions
         else
         {
             cout << "\n[ERROR] * No units available for this item *" << '\n';
-            return K__Result::Failed;
+            return ACResult::Failed;
         }
 
         static name_str_t name;
         cout << IDN << "Enter assignee's name: ";
         if (!Input::entity_name(name, MAX_NAME_LEN))
-            return K__Result::Failed;
+            return ACResult::Failed;
 
         cout << "\n";
 
@@ -613,20 +620,20 @@ namespace InvUserActions
             << "Item \"" << item->meta.name
             << "\" assigned to \"" << name << "\" successfully\n";
 
-        return K__Result::Ok;
+        return ACResult::Ok;
     }
 
-    K__Result RetrieveItem(Inventory& inv)
+    ACResult RetrieveItem(Inventory& inv)
     {
         SELECT_ITEM(inv, item);
 
         if (item->assigned_count == 0)
         {
             cout << "\n* No units currently assigned to any member *" << '\n';
-            return K__Result::Ok;
+            return ACResult::Ok;
         }
 
-        auto mem_count = Frontend::DisplayItem::Full(*item);
+        auto mem_count = DisplayItem::Full(*item);
 
         cout << IDN << "Select an entry: ";
         auto location = Input::integer();
@@ -634,7 +641,7 @@ namespace InvUserActions
         if (location < 1 || location > mem_count)
         {
             cout << "\n [ERROR] * Invalid choice *" << '\n';
-            return K__Result::Failed;
+            return ACResult::Failed;
         }
         --location;
 
@@ -650,26 +657,26 @@ namespace InvUserActions
         cout
             << "Item \"" << item->meta.name << "\" retrieved successfully\n";
 
-        return K__Result::Ok;
+        return ACResult::Ok;
     }
 
-    K__Result ItemDetails(Inventory& inv)
+    ACResult ItemDetails(Inventory& inv)
     {
         // cout << IDN << "Enter Item Id: ";
         // auto item = Input::identitfied_item(inv);
 
         // if (item == nullptr)
-            // return K__Result::Failed;
+            // return MResult::Failed;
 
         SELECT_ITEM(inv, item);
 
         cout << "\n";
 
-        Frontend::DisplayItem::Full(*item);
+        DisplayItem::Full(*item);
 
-        return K__Result::Ok;
+        return ACResult::Ok;
     }
-}; // namespace InvUserActions
+}; // namespace Core
 
 Member* FindMemberByName(Member* head, const char* name)
 {
@@ -729,5 +736,12 @@ void impl_retrieve(InventoryItem* item, Member* entry)
 
     ++item->item_count;
     --item->assigned_count;
+}
+
+namespace Internal {
+    void Add(Inventory& inv, item_id_t id, item_count_t icount, ItemMeta& meta)
+    {
+
+    }
 }
 
