@@ -18,9 +18,6 @@ static void OnBeforeQuit(Serialization::DataFile f, Inventory& inv);
 static void InitInventory(Inventory* inv);
 static void FreeInventory(Inventory* inv);
 
-void impl_assign(InventoryItem* item, const char* name);
-void impl_retrieve(InventoryItem* item, Member* entry);
-
 enum class ACResult
 {
     Ok = 0,
@@ -56,6 +53,16 @@ namespace Frontend
     ACResult    HandleAction(Inventory& inv, MenuAction action);
 }; // namespace Frontend
 
+namespace Internal {
+
+    static InventoryItem*   FindItemById(const Inventory& inv, item_id_t id, bool active_only = true);
+    static Member*          FindMemberByName(Member* head, const char* name);
+
+    static void Add(Inventory& inv, item_id_t id, item_count_t icount, const ItemMeta& meta);   
+    static void Delete(Inventory& inv, InventoryItem* item);
+    static void Assign(InventoryItem* item, const char* name);
+    static void Retrieve(InventoryItem* item, Member* entry);  
+}
 
 namespace Core
 {
@@ -260,7 +267,7 @@ namespace Input
             return nullptr;
         }
 
-        auto itemptr = InvUtil_FindItemById(inv, (item_id_t) id_);
+        auto itemptr = Internal::FindItemById(inv, (item_id_t) id_);
 
         if (show_error && itemptr == nullptr)
         {
@@ -431,7 +438,7 @@ namespace Core
 
             id = id_;
 
-            if (InvUtil_FindItemById(inv, id) != nullptr)
+            if (Internal::FindItemById(inv, id) != nullptr)
             {
                 cout << "\n[ERROR] * Item with id " << id << " already exists. *\n"
                      << "        * Failed to add item *\n";
@@ -463,19 +470,7 @@ namespace Core
 
         cout << "\n";
 
-        if (inv.count == inv.capacity)
-            InvUtil_AllocateFor(inv, grow(inv.capacity));
-
-        InventoryItem& slot = inv.items[inv.count++];
-
-        slot.item_id = id;
-
-        // slot.meta.name = meta.name;
-        strcpy(slot.meta.name, meta.name);
-        slot.meta.cat = meta.cat;
-
-        slot.item_count = icount;
-        slot.allocated_to = nullptr;
+        Internal::Add(inv, id, icount, meta);
 
         cout << "Item \"" << meta.name << "\" added successfully\n";
 
@@ -586,7 +581,7 @@ namespace Core
 
         cout << "\n";
 
-        item->active = false;
+        Internal::Delete(inv, item);
 
         cout << "Item \"" << item->meta.name << "\" with id " << item->item_id << " deleted successfully\n";
 
@@ -614,7 +609,7 @@ namespace Core
 
         cout << "\n";
 
-        impl_assign(item, name);
+        Internal::Assign(item, name);
 
         cout
             << "Item \"" << item->meta.name
@@ -652,7 +647,7 @@ namespace Core
             entry = entry->next;
 
         /* TODO: check for unreachable case of entry->borrow_count == 0 */
-        impl_retrieve(item, entry);
+        Internal::Retrieve(item, entry);
 
         cout
             << "Item \"" << item->meta.name << "\" retrieved successfully\n";
@@ -662,12 +657,6 @@ namespace Core
 
     ACResult ItemDetails(Inventory& inv)
     {
-        // cout << IDN << "Enter Item Id: ";
-        // auto item = Input::identitfied_item(inv);
-
-        // if (item == nullptr)
-            // return MResult::Failed;
-
         SELECT_ITEM(inv, item);
 
         cout << "\n";
@@ -678,70 +667,98 @@ namespace Core
     }
 }; // namespace Core
 
-Member* FindMemberByName(Member* head, const char* name)
-{
-    while (head != nullptr)
-    {
-        if (strcmp(head->name, name) == 0)
-            return head;
-
-        head = head->next;
-    }
-
-    return nullptr;
-}
-
-void impl_assign(InventoryItem* item, const char* name)
-{
-    auto entry = FindMemberByName(item->allocated_to, name);
-
-    if (entry == nullptr)
-    {
-        entry = CreateMember(name);
-
-        auto tail = item->allocated_to;
-
-        if (tail != nullptr)
-            tail->prev = entry;
-
-        item->allocated_to = entry;
-
-        entry->next = tail;
-        entry->prev = nullptr;
-    }
-
-    ++entry->borrow_count;
-    ++item->assigned_count;
-    --item->item_count;
-}
-
-
-void impl_retrieve(InventoryItem* item, Member* entry)
-{
-    if (--entry->borrow_count == 0)
-    {
-        auto first = entry->prev;
-        auto second = entry->next;
-
-        Member** head = first == nullptr ?
-            &item->allocated_to : &first->next;
-
-        *head = second;
-
-        if (second != nullptr)
-            second->prev = first;
-
-        DeleteMember(entry);
-    }
-
-    ++item->item_count;
-    --item->assigned_count;
-}
-
 namespace Internal {
-    void Add(Inventory& inv, item_id_t id, item_count_t icount, ItemMeta& meta)
-    {
 
+    InventoryItem* FindItemById(const Inventory& inv, item_id_t id, bool active_only)
+    {
+        for (int i = 0; i < inv.count; ++i)
+        {
+            auto& item = inv.items[i];
+            if (item.item_id == id && (!active_only || item.active))
+                return &item;
+        }
+
+        return nullptr;
+    }
+
+    Member* FindMemberByName(Member* head, const char* name)
+    {
+        while (head != nullptr)
+        {
+            if (strcmp(head->name, name) == 0)
+                return head;
+
+            head = head->next;
+        }
+
+        return nullptr;
+    }
+
+    static void Add(Inventory& inv, item_id_t id, item_count_t icount, const ItemMeta& meta)
+    {
+        if (inv.count == inv.capacity)
+            InvUtil_AllocateFor(inv, grow(inv.capacity));
+
+        InventoryItem& slot = inv.items[inv.count++];
+
+        slot.item_id = id;
+
+        strcpy(slot.meta.name, meta.name);
+        slot.meta.cat = meta.cat;
+
+        slot.item_count = icount;
+        slot.allocated_to = nullptr;
+    }
+ 
+    static inline void Delete(Inventory& inv, InventoryItem* item)
+    {
+        item->active = false;
+    }
+
+    static void Assign(InventoryItem* item, const char* name)
+    {
+        auto entry = FindMemberByName(item->allocated_to, name);
+
+        if (entry == nullptr)
+        {
+            entry = CreateMember(name);
+
+            auto tail = item->allocated_to;
+
+            if (tail != nullptr)
+                tail->prev = entry;
+
+            item->allocated_to = entry;
+
+            entry->next = tail;
+            entry->prev = nullptr;
+        }
+
+        ++entry->borrow_count;
+        ++item->assigned_count;
+        --item->item_count;
+    }
+
+    static void Retrieve(InventoryItem* item, Member* entry)
+    {
+        if (--entry->borrow_count == 0)
+        {
+            auto first = entry->prev;
+            auto second = entry->next;
+
+            Member** head = first == nullptr ?
+                &item->allocated_to : &first->next;
+
+            *head = second;
+
+            if (second != nullptr)
+                second->prev = first;
+
+            DeleteMember(entry);
+        }
+
+        ++item->item_count;
+        --item->assigned_count;
     }
 }
 

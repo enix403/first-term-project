@@ -8,6 +8,8 @@
 
 enum ItemCategory
 {
+    IC_INVALID,
+
     IC_STATIONARY,
     IC_MACHINERY,
     IC_ACCESSORY,
@@ -99,18 +101,4 @@ void InvUtil_AllocateFor(Inventory& inv, uint32_t capacity)
         }
     }
 }
-
-InventoryItem* InvUtil_FindItemById(const Inventory& inv, item_id_t id, bool active_only = true)
-{
-    for (int i = 0; i < inv.count; ++i)
-    {
-        auto& item = inv.items[i];
-        if (item.item_id == id && (!active_only || item.active))
-            return &item;
-    }
-
-    return nullptr;
-}
-
-
 #endif
