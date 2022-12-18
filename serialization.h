@@ -18,30 +18,81 @@ namespace Serialization
     static constexpr const char* MAIN_FILE_NAME = "inventory_data.bin";
 
     static constexpr uint8_t MAGIC_BYTES[16] = {
-        0x49, 0x4E, 0x56, 0x4D, 0x47, 0x4D, 0x54, 0x53,
+        0x49, 0x4E, 0x56, 0x4D, 0x47, 0x4D, 0x54, 0x53, //
         0x59, 0x53, 0x54, 0x45, 0x4D, 0x41, 0x42, 0x43,
     }; // hexdump of "INVMGMTSYSTEMABC"
 
     using DataFile = fstream*;
 
+    inline DataFile OpenFile()
+    {
+        /* Create the file if it does not exist */
+        {
+            std::ofstream(MAIN_FILE_NAME, ios::binary | ios::out | ios::app);
+        }
+
+        auto f = new std::fstream();
+        f->open(MAIN_FILE_NAME, ios::binary | ios::in | ios::out | ios::ate);
+
+        f->seekp(0, ios::beg);
+        f->seekg(0, ios::beg);
+
+        if (!(*f))
+        {
+            delete f;
+            return nullptr;
+        }
+
+        return f;
+    }
+
+    inline void CloseFile(DataFile f)
+    {
+        delete f;
+    }
+
+
+    /* To bytes immutable */
+#define TO_BYTES_I(ptr) reinterpret_cast<const char*>(ptr)
+    /* To bytes mutable */
+#define TO_BYTES_M(ptr) reinterpret_cast<char*>(ptr)
+
+    template<typename T, typename S = void>
+    using enable_if_copyable = typename std::enable_if<std::is_trivially_copyable<T>::value, S>::type;
+
+    template<typename T>
+    inline enable_if_copyable<T> write_bytes(fstream& fout, const T& x)
+    {
+        fout.write(TO_BYTES_I(&(x)), sizeof(T));
+    }
+
+    /* Address of an array is not guaranteed to be its start. So another overload is required that deals with arrays  */
+    template<typename T, size_t N>
+    inline enable_if_copyable<T> write_bytes(fstream& fout, const T (&x)[N])
+    {
+        fout.write(TO_BYTES_I(x), sizeof(T) * N);
+    }
+
+    template<typename T>
+    inline enable_if_copyable<T, bool> read_bytes(fstream& fin, T& x)
+    {
+        fin.read(TO_BYTES_M(&(x)), sizeof(T));
+        return !fin.fail();
+    }
+
+    template<typename T, size_t N>
+    inline enable_if_copyable<T, bool> read_bytes(fstream& fin, T (&x)[N])
+    {
+        fin.read(TO_BYTES_M(x), sizeof(T) * N);
+        return !fin.fail();
+    }
+
+#undef TO_BYTES_I
+#undef TO_BYTES_M
+
     /* --------------------------------------------------------------- */
     /* --------------------------- WRITING --------------------------- */
     /* --------------------------------------------------------------- */
-
-#define TO_BYTES(ptr) reinterpret_cast<const char*>(ptr)
-#define TO_BYTES_R(ptr) reinterpret_cast<char*>(ptr)
-
-    template <typename T>
-    inline void write_bytes(fstream& fout, const T& x)
-    {
-        fout.write(TO_BYTES(&(x)), sizeof(T));
-    }
-
-    template <typename T, size_t N>
-    inline void write_bytes(fstream& fout, const T (&x)[N])
-    {
-        fout.write(TO_BYTES(x), sizeof(T) * N);
-    }
 
     inline void WriteItem(DataFile f, const InventoryItem& item)
     {
@@ -58,7 +109,7 @@ namespace Serialization
         write_bytes(fout, mem->borrow_count);
     }
 
-    template<typename T = void>
+    template <typename = void> /* Just to silence warning */
     void WriteMembers(DataFile f, const InventoryItem& item)
     {
         auto count_pos = f->tellp();
@@ -82,7 +133,7 @@ namespace Serialization
         f->seekp(next_write_spos);
     }
 
-    template<typename T = void>
+    template<typename = void>
     void WriteToFile(DataFile f, const Inventory& inv)
     {
         f->clear();
@@ -96,67 +147,28 @@ namespace Serialization
 
         for (int i = 0; i < inv.count; ++i)
             WriteMembers(f, inv.items[i]);
+
+        std::flush(*f);
     }
 
     /* --------------------------------------------------------------- */
     /* --------------------------- READING --------------------------- */
     /* --------------------------------------------------------------- */
 
-    template <typename T>
-    inline bool read_bytes(fstream& fin, T& x)
-    {
-        fin.read(TO_BYTES_R(&(x)), sizeof(T));
-        return !fin.fail();
-    }
-
-    template <typename T, size_t N>
-    inline bool read_bytes(fstream& fin, T (&x)[N])
-    {
-        fin.read(TO_BYTES_R(x), sizeof(T) * N);
-        return !fin.fail();
-    }
-
-    inline bool check_bytes(fstream& fin)
+    inline bool ValidateMagicBytes(fstream& fin)
     {
         using bytes_t = std::remove_cv<decltype(MAGIC_BYTES)>::type;
         bytes_t file_bytes;
-        fin.read(TO_BYTES_R(file_bytes), sizeof(file_bytes));
 
-        if (fin.fail())
+        if (!read_bytes(fin, file_bytes))
             return false;
 
-        static constexpr size_t len = std::extent<bytes_t, 0>::value;
-        return memcmp(file_bytes, MAGIC_BYTES, len) == 0;
-    }
-
-    inline DataFile OpenFile()
-    {
-        /* Create the file if it does not exist */
-        { std::ofstream(MAIN_FILE_NAME, ios::binary | ios::out | ios::app); }
-
-        auto f = new std::fstream();
-        f->open(MAIN_FILE_NAME, ios::binary | ios::in | ios::out | ios::ate);
-
-        f->seekp(0, ios::beg);
-        f->seekg(0, ios::beg);
-
-        if (!(*f))
-        {
-            delete f;
-            return nullptr;
-        }
-
-        return f;
+        return memcmp(file_bytes, MAGIC_BYTES, sizeof(file_bytes)) == 0;
     }
 
     inline bool IsFileValid(DataFile f)
     {
-        return check_bytes(*f);
-    }
-
-    inline void CloseFile(DataFile f)
-    {
-        delete f;
+        return ValidateMagicBytes(*f);
     }
 
     inline item_count_t ReadCount(DataFile f)
@@ -168,10 +180,10 @@ namespace Serialization
         return -1;
     }
 
-    template<typename T = void>
+    template<typename = void>
     bool ReadItem(DataFile f, InventoryItem& item)
     {
-        bool res = 1;
+        int res = 1;
 
         res &= read_bytes(*f, item.item_id);
         res &= read_bytes(*f, item.meta);
@@ -232,27 +244,31 @@ namespace Serialization
         return true;
     }
 
-    template<typename T = void>
+    template<typename = void>
     bool ReadFromFile(DataFile f, Inventory& inv)
     {
-        auto count = ReadCount(f); 
+        auto count = ReadCount(f);
         if (count == -1)
             return false;
 
-        InvUtil_AllocateFor(inv, pow(2, ceil(log2(count))));
-
-        static InventoryItem item;
-        for (int i = 0; i < count; ++i)
+        if (count > 0)
         {
-            if (!ReadItem(f, item))
-                return false;
+            inventory_allocate_capacity(inv, pow(2, ceil(log2(count))));
 
-            inv.items[i] = item;
+            static InventoryItem item;
+            for (int i = 0; i < count; ++i)
+            {
+                if (!ReadItem(f, item))
+                    return false;
+
+                inv.items[i] = item;
+            }
+
+            for (int i = 0; i < count; ++i)
+                if (!ReadMembers(f, inv.items[i]))
+                    return false;
         }
 
-        for (int i = 0; i < count; ++i)
-            if (!ReadMembers(f, inv.items[i]))
-                return false;
 
         inv.count = count;
 

@@ -49,13 +49,10 @@ struct InventoryItem
     Member* allocated_to = nullptr;
 };
 
-// auto __trival = std::is_trivially_copyable<InventoryItem>::value;
-// auto __sz = sizeof(InventoryItem);
-
 struct Inventory
 {
     InventoryItem* items;
-    uint32_t count;
+    uint32_t count = 0;
     uint32_t capacity;
 };
 
@@ -82,7 +79,7 @@ inline void DeleteMember(Member* m)
 }
 
 
-void InvUtil_AllocateFor(Inventory& inv, uint32_t capacity)
+void inventory_allocate_capacity(Inventory& inv, uint32_t capacity)
 {
     if (capacity > inv.capacity)
     {

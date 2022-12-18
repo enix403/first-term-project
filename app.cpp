@@ -81,7 +81,7 @@ int main()
 {
     std::ios::sync_with_stdio(false);
 
-    // Lifecycle::Welcome();
+    Lifecycle::Welcome();
 
     Inventory inv;
     Lifecycle::InitInventory(&inv);
@@ -688,7 +688,7 @@ namespace Core {
     static void Add(Inventory& inv, item_id_t id, item_count_t icount, const ItemMeta& meta)
     {
         if (inv.count == inv.capacity)
-            InvUtil_AllocateFor(inv, grow(inv.capacity));
+            inventory_allocate_capacity(inv, grow(inv.capacity));
 
         InventoryItem& slot = inv.items[inv.count++];
 
