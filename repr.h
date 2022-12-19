@@ -3,6 +3,7 @@
 #ifndef __APP_REPR_H_
 #define __APP_REPR_H_
 
+#include <string>
 #include <cstdint>
 #include <cstring>
 
@@ -18,6 +19,7 @@ enum ItemCategory
 static constexpr std::size_t MAX_NAME_LEN = 24;
 
 typedef char name_str_t[MAX_NAME_LEN];
+typedef std::string name_str_new_t;
 
 struct Member
 {
@@ -33,7 +35,8 @@ typedef uint32_t item_count_t;
 
 struct ItemMeta
 {
-    char name[MAX_NAME_LEN];
+    // char name[MAX_NAME_LEN];
+    std::string name;
     ItemCategory cat;
 };
 
@@ -87,12 +90,14 @@ void inventory_allocate_capacity(Inventory& inv, uint32_t capacity)
 
         // inv.capacity = grow(inv.capacity);
         // inv.items = new InventoryItem[inv.capacity];
-        inv.items = new InventoryItem[capacity];
+        auto new_list = inv.items = new InventoryItem[capacity];
         inv.capacity = capacity;
 
         if (inv.count > 0)
         {
-            memcpy(inv.items, old_list, sizeof(InventoryItem) * inv.count);
+            // memcpy(inv.items, old_list, sizeof(InventoryItem) * inv.count);
+            for (int i = 0; i < inv.count; ++i)
+                new_list[i] = std::move(old_list[i]);
 
             delete[] old_list;
         }

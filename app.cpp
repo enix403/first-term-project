@@ -193,7 +193,7 @@ namespace Lifecycle
             }
         }
 
-        delete inv->items;
+        delete[] inv->items;
     }
 };
 
@@ -255,6 +255,25 @@ namespace Input
         }
 
         memcpy(target, name, xc + 1);
+
+        return true;
+    }
+
+    bool entity_name(std::string& target, bool allow_empty, int _unused)
+    {
+        if (!allow_empty)
+            cin >> std::ws;
+
+        static std::string buf;
+
+        getline(std::cin, buf);
+
+        if (std::cin.eof() || std::cin.fail())
+        {
+            return false;
+        }
+
+        target = buf;
 
         return true;
     }
@@ -450,7 +469,7 @@ namespace Frontend
 
         {
             cout << IDN << "Enter Item name: ";
-            if (!Input::entity_name(meta.name, MAX_NAME_LEN))
+            if (!Input::entity_name(meta.name, false, 666137))
                 return ACResult::Failed;
         }
 
@@ -546,8 +565,8 @@ namespace Frontend
         SELECT_ITEM(inv, item);
 
         cout << IDN << "Enter Item's new name (press enter to keep original): ";
-        static name_str_t name;
-        if (!Input::entity_name(name, MAX_NAME_LEN, true))
+        static std::string name;
+        if (!Input::entity_name(name, true, 666137))
             return ACResult::Failed;
 
         cout << IDN << "Enter Item's available unit count (press enter to keep original): ";
@@ -565,8 +584,8 @@ namespace Frontend
         if (ic != -2)
             item->item_count = ic;
 
-        if (name[0] != '\0') /* Name is not empty, i.e user has provided some input */
-            strcpy(item->meta.name, name);
+        if (!(stringstream(name) >> std::ws).eof())
+            item->meta.name = name;
 
         cout << "Item saved successfully\n";
 
@@ -704,7 +723,9 @@ namespace Core {
 
         slot.item_id = id;
 
-        strcpy(slot.meta.name, meta.name);
+        // strcpy(slot.meta.name, meta.name);
+
+        slot.meta.name = meta.name;
         slot.meta.cat = meta.cat;
 
         slot.item_count = icount;

@@ -73,6 +73,20 @@ namespace Serialization
         fout.write(TO_BYTES_I(x), sizeof(T) * N);
     }
 
+    // Unbounded array
+    template<typename T>
+    inline enable_if_copyable<T> write_bytes(fstream& fout, const T* x, size_t count)
+    {
+        fout.write(TO_BYTES_I(x), sizeof(T) * count);
+    }
+
+    inline void write_bytes(fstream& fout, const std::string& x)
+    {
+        auto len = x.length();
+        write_bytes(fout, len);
+        write_bytes(fout, x.c_str(), len);
+    }
+
     template<typename T>
     inline enable_if_copyable<T, bool> read_bytes(fstream& fin, T& x)
     {
@@ -87,6 +101,27 @@ namespace Serialization
         return !fin.fail();
     }
 
+    template<typename T>
+    inline enable_if_copyable<T, bool> read_bytes(fstream& fin, T* x, size_t count)
+    {
+        fin.read(TO_BYTES_M(x), sizeof(T) * count);
+        return !fin.fail();
+    }
+
+    inline bool read_bytes(fstream& fin, std::string& x)
+    {
+        int res = 1;
+        decltype(x.length()) len;
+        res &= read_bytes(fin, len);
+        if (res)
+        {
+            static char buf[4096];
+            res &= read_bytes(fin, buf, len);
+            x.assign(buf, len);
+        }
+        return res;
+    }
+
 #undef TO_BYTES_I
 #undef TO_BYTES_M
 
@@ -96,11 +131,22 @@ namespace Serialization
 
     inline void WriteItem(DataFile f, const InventoryItem& item)
     {
-        write_bytes(*f, item.item_id);
-        write_bytes(*f, item.meta);
-        write_bytes(*f, item.item_count);
-        write_bytes(*f, item.assigned_count);
-        write_bytes(*f, item.active);
+        auto& fout = *f;
+        write_bytes(fout, item.item_id);
+        // write_bytes(fout, item.meta);
+
+        /* Meta */
+        {
+            // 1. Name
+            write_bytes(fout, item.meta.name);
+
+            // 2. Cat
+            write_bytes(fout, item.meta.cat);
+        }
+
+        write_bytes(fout, item.item_count);
+        write_bytes(fout, item.assigned_count);
+        write_bytes(fout, item.active);
     }
 
     inline void WriteSingleMember(fstream& fout, const Member* mem)
@@ -185,11 +231,22 @@ namespace Serialization
     {
         int res = 1;
 
-        res &= read_bytes(*f, item.item_id);
-        res &= read_bytes(*f, item.meta);
-        res &= read_bytes(*f, item.item_count);
-        res &= read_bytes(*f, item.assigned_count);
-        res &= read_bytes(*f, item.active);
+        auto& fin = *f;
+
+        res &= read_bytes(fin, item.item_id);
+        // res &= read_bytes(fin, item.meta);
+
+        /* Meta */
+        {
+            // 1. Name
+            res &= read_bytes(fin, item.meta.name);
+
+            // 2. Cat
+            res &= read_bytes(fin, item.meta.cat);
+        }
+        res &= read_bytes(fin, item.item_count);
+        res &= read_bytes(fin, item.assigned_count);
+        res &= read_bytes(fin, item.active);
 
         return res;
     }
