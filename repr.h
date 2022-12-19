@@ -18,12 +18,11 @@ enum ItemCategory
 
 static constexpr std::size_t MAX_NAME_LEN = 24;
 
-typedef char name_str_t[MAX_NAME_LEN];
 typedef std::string name_str_new_t;
 
 struct Member
 {
-    char name[MAX_NAME_LEN];
+    std::string name;
     int borrow_count = 0;
 
     Member* prev = nullptr;
@@ -35,7 +34,6 @@ typedef uint32_t item_count_t;
 
 struct ItemMeta
 {
-    // char name[MAX_NAME_LEN];
     std::string name;
     ItemCategory cat;
 };
@@ -68,7 +66,7 @@ inline Member* CreateMember(const char* name)
 {
     Member* m = new Member;
 
-    strcpy(m->name, name);
+    m->name = name;
     m->borrow_count = 0;
     m->next = nullptr;
     m->prev = nullptr;

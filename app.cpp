@@ -24,7 +24,8 @@ namespace Lifecycle
 namespace Input
 {
     int64_t             integer(bool allow_empty = false);
-    bool                entity_name(char* target, size_t max_len, bool allow_empty = false);
+    // bool                entity_name(char* target, size_t max_len, bool allow_empty = false);
+    bool                entity_name(std::string& target, bool allow_empty = false);
     InventoryItem*      identitfied_item(Inventory& inv, bool show_error = true);
 }; // namespace Input
 
@@ -234,32 +235,7 @@ namespace Input
         return val < 0 ? -1 : val;
     }
 
-    bool entity_name(char* target, size_t max_len, bool allow_empty)
-    {
-        static const auto MAX_LINE_SIZE = 1024;
-        static char name[MAX_LINE_SIZE];
-        if (!allow_empty)
-            cin >> ws;
-        std::cin.getline(name, MAX_LINE_SIZE, '\n');
-
-        auto xc = std::cin.gcount() - 1;
-
-        if (std::cin.eof())
-            return false;
-
-        if (std::cin.fail() || xc >= max_len)
-        {
-            cout << "[ERROR] * Enter a name of less than " << max_len << "characters *\n";
-
-            return false;
-        }
-
-        memcpy(target, name, xc + 1);
-
-        return true;
-    }
-
-    bool entity_name(std::string& target, bool allow_empty, int _unused)
+    bool entity_name(std::string& target, bool allow_empty)
     {
         if (!allow_empty)
             cin >> std::ws;
@@ -469,7 +445,7 @@ namespace Frontend
 
         {
             cout << IDN << "Enter Item name: ";
-            if (!Input::entity_name(meta.name, false, 666137))
+            if (!Input::entity_name(meta.name))
                 return ACResult::Failed;
         }
 
@@ -566,7 +542,7 @@ namespace Frontend
 
         cout << IDN << "Enter Item's new name (press enter to keep original): ";
         static std::string name;
-        if (!Input::entity_name(name, true, 666137))
+        if (!Input::entity_name(name, true))
             return ACResult::Failed;
 
         cout << IDN << "Enter Item's available unit count (press enter to keep original): ";
@@ -622,14 +598,14 @@ namespace Frontend
             return ACResult::Failed;
         }
 
-        static name_str_t name;
+        static std::string name;
         cout << IDN << "Enter assignee's name: ";
-        if (!Input::entity_name(name, MAX_NAME_LEN))
+        if (!Input::entity_name(name))
             return ACResult::Failed;
 
         cout << "\n";
 
-        Core::Assign(item, name);
+        Core::Assign(item, name.c_str());
 
         cout
             << "Item \"" << item->meta.name
@@ -705,7 +681,8 @@ namespace Core {
     {
         while (head != nullptr)
         {
-            if (strcmp(head->name, name) == 0)
+            // if (strcmp(head->name, name) == 0)
+            if (head->name == name)
                 return head;
 
             head = head->next;
