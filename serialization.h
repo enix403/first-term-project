@@ -66,7 +66,7 @@ namespace Serialization
         fout.write(TO_BYTES_I(&(x)), sizeof(T));
     }
 
-    /* Address of an array is not guaranteed to be its start. So another overload is required that deals with arrays  */
+    // Address of an array is not guaranteed to be its start. Thus another overload is required that deals with arrays
     template<typename T, size_t N>
     inline enable_if_copyable<T> write_bytes(fstream& fout, const T (&x)[N])
     {

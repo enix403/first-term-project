@@ -176,13 +176,23 @@ namespace Lifecycle
     void InitInventory(Inventory* inv)
     {
         inv->count = 0;
-        inv->capacity = 256;
-        inv->items = new InventoryItem[inv->capacity];
+        inv->capacity = 0;
+        inventory_allocate_capacity(*inv, 256);
     }
 
     void FreeInventory(Inventory* inv)
     {
-        /* TODO: free nested member lists */
+        for (int i = 0; i < inv->count; ++i)
+        {
+            Member* head = inv->items[i].allocated_to;
+            while (head != nullptr)
+            {
+                auto next = head->next;
+                DeleteMember(head);
+                head = next;
+            }
+        }
+
         delete inv->items;
     }
 };
@@ -759,4 +769,3 @@ namespace Core {
         --item->assigned_count;
     }
 }
-
