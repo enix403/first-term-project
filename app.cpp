@@ -383,12 +383,12 @@ Select an option:
     {
         auto op = menu_input();
 
+        InvActionResult result = InvActionResult::Failed;
+
         if (op == 0)
         {
-            return { .next_tick_st = NextTickStatus::Quit };
+            return { result, NextTickStatus::Quit };
         }
-
-        InvActionResult result = InvActionResult::Failed;
 
         // clang-format off
         switch (op)
@@ -409,7 +409,7 @@ Select an option:
 
         std::cout << endl;
 
-        return { .result = result, .next_tick_st = NextTickStatus::Continue };
+        return { result, NextTickStatus::Continue };
     }
 
 } // namespace Frontend
@@ -513,7 +513,7 @@ namespace Frontend
 
         std::cout << "\n";
 
-        int count;
+        int count = 0;
         for (int i = 0; i < inv.count; ++i)
         {
             auto& item = inv.items[i];
@@ -696,7 +696,6 @@ namespace Core
     {
         while (head != nullptr)
         {
-            // if (strcmp(head->name, name) == 0)
             if (head->name == name)
                 return head;
 
