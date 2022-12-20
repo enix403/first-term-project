@@ -4,8 +4,6 @@
 #include <cstring>
 #include <limits>
 #include <iomanip>
-#include <cctype>
-// #include <type_traits>
 
 #include "repr.h"
 #include "serialization.h"
@@ -23,9 +21,8 @@ namespace Lifecycle
 
 namespace Input
 {
+    bool                string(std::string& target, bool allow_empty = false);
     int64_t             integer(bool allow_empty = false);
-    // bool                entity_name(char* target, size_t max_len, bool allow_empty = false);
-    bool                entity_name(std::string& target, bool allow_empty = false);
     InventoryItem*      identitfied_item(Inventory& inv, bool show_error = true);
 }; // namespace Input
 
@@ -202,40 +199,7 @@ namespace Input
 {
     static constexpr streamsize max_ssz = std::numeric_limits<streamsize>::max();
 
-    int64_t integer(bool allow_empty)
-    {
-        static const auto MAX_LINE_SIZE = 1024ll;
-        static char line[MAX_LINE_SIZE];
-        std::stringstream ss;
-
-        std::cin.getline(line, MAX_LINE_SIZE, '\n');
-
-        ss << line;
-
-        // If string is empty then it's first char must be '\0'
-        if (allow_empty && line[0] == '\0')
-            return -2;
-
-        int val;
-        ss >> std::skipws >> val;
-
-        if (ss.fail())
-            return -1;
-
-        while (true)
-        {
-            char c = ss.get();
-            if (ss.eof())
-                break;
-
-            if (!std::isspace(c))
-                return -1;
-        }
-
-        return val < 0 ? -1 : val;
-    }
-
-    bool entity_name(std::string& target, bool allow_empty)
+    bool string(std::string& target, bool allow_empty)
     {
         if (!allow_empty)
             cin >> std::ws;
@@ -252,6 +216,33 @@ namespace Input
         target = buf;
 
         return true;
+    }
+
+    int64_t integer(bool allow_empty)
+    {
+        static std::string target;
+        if (!Input::string(target, allow_empty))
+            return -1;
+
+        stringstream ss(target);
+
+        /* Immediately discard leading whitespaces */
+        ss >> std::ws;
+
+        if (allow_empty && ss.eof())
+            return -2;
+
+        int64_t val;
+
+        ss >> val;
+
+        if (ss.fail())
+            return -1;
+
+        if (!(ss >> ws).eof())
+            return -1;
+
+        return val;
     }
 
     InventoryItem* identitfied_item(Inventory& inv, bool show_error)
@@ -280,21 +271,23 @@ namespace Input
 namespace DisplayItem
 {
     static constexpr int w1 =  6;
-    static constexpr int w2 = 18;
+    static constexpr int w2 = 16;
     static constexpr int w3 = 18;
     static constexpr int w4 = 18;
+    static constexpr int w5 = 18;
 
     static inline void Header()
     {
         cout
             << std::setw(w1) << std::left << "ID"
             << std::setw(w2) << std::left << "Name"
-            << std::setw(w3) << std::left << "Units Available"
-            << std::setw(w4) << std::left << "Units Assigned"
+            << std::setw(w3) << std::left << "Category"
+            << std::setw(w4) << std::left << "Units Available"
+            << std::setw(w5) << std::left << "Units Assigned"
         << "\n";
 
         cout
-            << std::setw(w1 + w2 + w3 + w4)
+            << std::setw(w1 + w2 + w3 + w4 + w5)
             << std::setfill('-') << "" << "\n" << std::setfill(' ');
     }
 
@@ -303,8 +296,9 @@ namespace DisplayItem
         cout
             << std::setw(w1) << std::left << item.item_id
             << std::setw(w2) << std::left << item.meta.name
-            << std::setw(w3) << std::left << item.item_count
-            << std::setw(w4) << std::left << item.assigned_count
+            << std::setw(w3) << std::left << item.meta.cat
+            << std::setw(w4) << std::left << item.item_count
+            << std::setw(w5) << std::left << item.assigned_count
             << "\n";
     }
 
@@ -445,7 +439,13 @@ namespace Frontend
 
         {
             cout << IDN << "Enter Item name: ";
-            if (!Input::entity_name(meta.name))
+            if (!Input::string(meta.name))
+                return ACResult::Failed;
+        }
+
+        {
+            cout << IDN << "Enter Item Category: ";
+            if (!Input::string(meta.cat))
                 return ACResult::Failed;
         }
 
@@ -462,7 +462,7 @@ namespace Frontend
             icount = ic;
         }
 
-        meta.cat = IC_MACHINERY;
+        // meta.cat = IC_MACHINERY;
 
         cout << "\n";
 
@@ -498,9 +498,12 @@ namespace Frontend
 
     ACResult SearchItem(Inventory& inv)
     {
-        cout << IDN << "Enter Item Name: ";
         string str;
-        getline(std::cin >> std::ws, str);
+        {
+            cout << IDN << "Enter Item name: ";
+            if (!Input::string(str))
+                return ACResult::Failed;
+        }
 
         cout << "\n";
 
@@ -542,7 +545,12 @@ namespace Frontend
 
         cout << IDN << "Enter Item's new name (press enter to keep original): ";
         static std::string name;
-        if (!Input::entity_name(name, true))
+        if (!Input::string(name, true))
+            return ACResult::Failed;
+
+        cout << IDN << "Enter Item's new category (press enter to keep original): ";
+        static std::string cat;
+        if (!Input::string(cat, true))
             return ACResult::Failed;
 
         cout << IDN << "Enter Item's available unit count (press enter to keep original): ";
@@ -555,13 +563,16 @@ namespace Frontend
 
         cout << "\n";
 
-        item->meta.cat = IC_MACHINERY; // Edited
+        // item->meta.cat = IC_MACHINERY; // Edited
 
         if (ic != -2)
             item->item_count = ic;
 
         if (!(stringstream(name) >> std::ws).eof())
             item->meta.name = name;
+
+        if (!(stringstream(cat) >> std::ws).eof())
+            item->meta.cat = cat;
 
         cout << "Item saved successfully\n";
 
@@ -600,7 +611,7 @@ namespace Frontend
 
         static std::string name;
         cout << IDN << "Enter assignee's name: ";
-        if (!Input::entity_name(name))
+        if (!Input::string(name))
             return ACResult::Failed;
 
         cout << "\n";
@@ -700,15 +711,12 @@ namespace Core {
 
         slot.item_id = id;
 
-        // strcpy(slot.meta.name, meta.name);
-
-        slot.meta.name = meta.name;
-        slot.meta.cat = meta.cat;
+        slot.meta = meta;
 
         slot.item_count = icount;
         slot.allocated_to = nullptr;
     }
- 
+
     static inline void Delete(Inventory& inv, InventoryItem* item)
     {
         item->active = false;

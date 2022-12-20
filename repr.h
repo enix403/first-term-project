@@ -5,20 +5,6 @@
 
 #include <string>
 #include <cstdint>
-#include <cstring>
-
-enum ItemCategory
-{
-    IC_INVALID,
-
-    IC_STATIONARY,
-    IC_MACHINERY,
-    IC_ACCESSORY,
-};
-
-static constexpr std::size_t MAX_NAME_LEN = 24;
-
-typedef std::string name_str_new_t;
 
 struct Member
 {
@@ -35,7 +21,10 @@ typedef uint32_t item_count_t;
 struct ItemMeta
 {
     std::string name;
-    ItemCategory cat;
+    std::string cat;
+
+    ItemMeta& operator=(const ItemMeta& other) = default;
+    ItemMeta& operator=(ItemMeta&& other) = default;
 };
 
 struct InventoryItem
@@ -46,8 +35,10 @@ struct InventoryItem
     item_count_t assigned_count = 0;
     bool active = true;
 
-    // Do not reorder allocated_to from being the last field
     Member* allocated_to = nullptr;
+
+    InventoryItem& operator=(const InventoryItem& other) = default;
+    InventoryItem& operator=(InventoryItem&& other) = default;
 };
 
 struct Inventory
@@ -86,14 +77,11 @@ void inventory_allocate_capacity(Inventory& inv, uint32_t capacity)
     {
         auto old_list = inv.items;
 
-        // inv.capacity = grow(inv.capacity);
-        // inv.items = new InventoryItem[inv.capacity];
         auto new_list = inv.items = new InventoryItem[capacity];
         inv.capacity = capacity;
 
         if (inv.count > 0)
         {
-            // memcpy(inv.items, old_list, sizeof(InventoryItem) * inv.count);
             for (int i = 0; i < inv.count; ++i)
                 new_list[i] = std::move(old_list[i]);
 
