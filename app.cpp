@@ -110,7 +110,7 @@ int main()
         using namespace Serialization;
         if (file == nullptr)
         {
-            cout << "[ERROR] Unable to open file" << endl;
+            std::cerr << "[ERROR] Unable to open file" << endl;
             return 1;
         }
 
@@ -118,7 +118,7 @@ int main()
         {
             if (!ReadFromFile(file, inv))
             {
-                cout << "[WARN] Invalid or corrupted file -- Skipping" << endl;
+                std::cerr << "[WARN] Invalid or corrupted file -- Skipping" << endl;
 
                 // Reset in case of failed read
                 Lifecycle::FreeInventory(&inv);
@@ -135,8 +135,8 @@ int main()
 
         if (!first_tick)
         {
-            cout << "----------------------------";
-            cout << "\n\n";
+            std::cout << "----------------------------";
+            std::cout << "\n\n";
         }
 
         first_tick = false;
@@ -164,7 +164,7 @@ namespace Lifecycle
 {
     static inline void Welcome()
     {
-        cout << "* Welcome to PUCIT Inventory Management System *\n" << endl;
+        std::cout << "* Welcome to PUCIT Inventory Management System *\n" << endl;
     }
 
     static void OnBeforeQuit(Serialization::DataFile f, Inventory& inv)
@@ -203,7 +203,7 @@ namespace Input
     bool string(std::string& target, bool allow_empty)
     {
         if (!allow_empty)
-            cin >> std::ws;
+            std::cin >> std::ws;
 
         static std::string buf;
 
@@ -252,7 +252,7 @@ namespace Input
 
         if (id_ == -1)
         {
-            cout << "\n[ERROR] * Invalid id *" << '\n';
+            std::cerr << "\n[ERROR] * Invalid id *" << '\n';
             return nullptr;
         }
 
@@ -260,8 +260,8 @@ namespace Input
 
         if (show_error && itemptr == nullptr)
         {
-            cout << "\n[ERROR] * Item with id " << id_ << " not found *\n"
-                 << "        * Failed to load item *\n";
+            std::cerr << "\n[ERROR] * Item with id " << id_ << " not found *\n"
+                      << "        * Failed to load item *\n";
         }
 
         return itemptr;
@@ -280,7 +280,7 @@ namespace DisplayItem
     static inline void Header()
     {
         // clang-format off
-        cout
+        std::cout
             << std::setw(w1) << std::left << "ID"
             << std::setw(w2) << std::left << "Name"
             << std::setw(w3) << std::left << "Category"
@@ -288,7 +288,7 @@ namespace DisplayItem
             << std::setw(w5) << std::left << "Units Assigned"
         << "\n";
 
-        cout
+        std::cout
             << std::setw(w1 + w2 + w3 + w4 + w5)
             << std::setfill('-') << "" << "\n" << std::setfill(' ');
         // clang-format on
@@ -297,7 +297,7 @@ namespace DisplayItem
     static inline void Summary(InventoryItem& item)
     {
         // clang-format off
-        cout
+        std::cout
             << std::setw(w1) << std::left << item.item_id
             << std::setw(w2) << std::left << item.meta.name
             << std::setw(w3) << std::left << item.meta.cat
@@ -313,11 +313,11 @@ namespace DisplayItem
         int i = 0;
         if (mem != nullptr)
         {
-            cout << "\nAssigned To: \n";
+            std::cout << "\nAssigned To: \n";
             while (mem != nullptr)
             {
                 // clang-format off
-                cout
+                std::cout
                     << "   > " << ++i << ". "
                     << mem->name << " | "
                     << mem->borrow_count << " unit(s) assigned" << "\n";
@@ -359,18 +359,18 @@ Select an option:
 
     MenuAction RequestAction()
     {
-        cout << g_menu << endl;
+        std::cout << g_menu << endl;
 
         int op;
 
         while (true)
         {
-            cout << "> Choose option [0-8]: ";
+            std::cout << "> Choose option [0-8]: ";
 
             bool valid = false;
             op = Input::integer();
 
-            if (cin.eof())
+            if (std::cin.eof())
                 return MenuAction::Quit;
 
             if (op >= 0 && op <= 8)
@@ -379,7 +379,7 @@ Select an option:
             if (valid)
                 break;
             else
-                cout << "[ERROR] * Invalid choice. Try again *" << endl;
+                std::cerr << "[ERROR] * Invalid choice. Try again *" << endl;
         }
 
         return static_cast<MenuAction>(op);
@@ -387,7 +387,7 @@ Select an option:
 
     ACResult HandleAction(Inventory& inv, MenuAction action)
     {
-        cout << "\n";
+        std::cout << "\n";
 
         ACResult result = ACResult::Failed;
 
@@ -408,7 +408,7 @@ Select an option:
         }
         // clang-format on
 
-        cout << endl;
+        std::cout << endl;
 
         return result;
     }
@@ -426,12 +426,12 @@ namespace Frontend
         ItemMeta meta;
 
         {
-            cout << IDN << "Enter Item Id: ";
+            std::cout << IDN << "Enter Item Id: ";
             auto id_ = Input::integer();
 
             if (id_ == -1)
             {
-                cout << "\n[ERROR] * Invalid id *" << '\n';
+                std::cout << "\n[ERROR] * Invalid id *" << '\n';
                 return ACResult::Failed;
             }
 
@@ -439,43 +439,43 @@ namespace Frontend
 
             if (Core::FindItemById(inv, id) != nullptr)
             {
-                cout << "\n[ERROR] * Item with id " << id << " already exists. *\n"
-                     << "        * Failed to add item *\n";
+                std::cerr << "\n[ERROR] * Item with id " << id << " already exists. *\n"
+                          << "        * Failed to add item *\n";
 
                 return ACResult::Failed;
             }
         }
 
         {
-            cout << IDN << "Enter Item name: ";
+            std::cout << IDN << "Enter Item name: ";
             if (!Input::string(meta.name))
                 return ACResult::Failed;
         }
 
         {
-            cout << IDN << "Enter Item Category: ";
+            std::cout << IDN << "Enter Item Category: ";
             if (!Input::string(meta.cat))
                 return ACResult::Failed;
         }
 
         {
-            cout << IDN << "Enter Item's available unit count: ";
+            std::cout << IDN << "Enter Item's available unit count: ";
             auto ic = Input::integer();
 
             if (ic == -1)
             {
-                cout << "\n[ERROR] * Invalid input *" << '\n';
+                std::cerr << "\n[ERROR] * Invalid input *" << '\n';
                 return ACResult::Failed;
             }
 
             icount = ic;
         }
 
-        cout << "\n";
+        std::cout << "\n";
 
         Core::Add(inv, id, icount, meta);
 
-        cout << "Item \"" << meta.name << "\" added successfully\n";
+        std::cout << "Item \"" << meta.name << "\" added successfully\n";
 
         return ACResult::Ok;
     }
@@ -484,7 +484,7 @@ namespace Frontend
     {
         if (inv.count == 0)
         {
-            cout << "*No items added*\n";
+            std::cout << "*No items added*\n";
             return ACResult::Failed;
         }
 
@@ -507,12 +507,12 @@ namespace Frontend
     {
         string str;
         {
-            cout << IDN << "Enter Item name: ";
+            std::cout << IDN << "Enter Item name: ";
             if (!Input::string(str))
                 return ACResult::Failed;
         }
 
-        cout << "\n";
+        std::cout << "\n";
 
         int count;
         for (int i = 0; i < inv.count; ++i)
@@ -527,7 +527,7 @@ namespace Frontend
 
         if (count == 0)
         {
-            cout << "*No items found*\n";
+            std::cout << "*No items found*\n";
             return ACResult::Failed;
         }
 
@@ -540,9 +540,9 @@ namespace Frontend
         ACResult res; \
         if ((res = ViewItems(inv)) != ACResult::Ok) \
             return res; \
-        cout << "\n"; \
+        std::cout << "\n"; \
     } \
-    cout << IDN << "Enter Item Id: "; \
+    std::cout << IDN << "Enter Item Id: "; \
     auto item = Input::identitfied_item(inv); \
     if (item == nullptr) \
         return ACResult::Failed;
@@ -552,25 +552,25 @@ namespace Frontend
     {
         SELECT_ITEM(inv, item);
 
-        cout << IDN << "Enter Item's new name (press enter to keep original): ";
+        std::cout << IDN << "Enter Item's new name (press enter to keep original): ";
         static std::string name;
         if (!Input::string(name, true))
             return ACResult::Failed;
 
-        cout << IDN << "Enter Item's new category (press enter to keep original): ";
+        std::cout << IDN << "Enter Item's new category (press enter to keep original): ";
         static std::string cat;
         if (!Input::string(cat, true))
             return ACResult::Failed;
 
-        cout << IDN << "Enter Item's available unit count (press enter to keep original): ";
+        std::cout << IDN << "Enter Item's available unit count (press enter to keep original): ";
         auto ic = Input::integer(true);
         if (ic == -1)
         {
-            cout << "\n[ERROR] * Invalid input *" << '\n';
+            std::cerr << "\n[ERROR] * Invalid input *" << '\n';
             return ACResult::Failed;
         }
 
-        cout << "\n";
+        std::cout << "\n";
 
         if (ic != -2)
             item->item_count = ic;
@@ -581,7 +581,7 @@ namespace Frontend
         if (!(stringstream(cat) >> std::ws).eof())
             item->meta.cat = cat;
 
-        cout << "Item saved successfully\n";
+        std::cout << "Item saved successfully\n";
 
         return ACResult::Ok;
     }
@@ -593,11 +593,11 @@ namespace Frontend
         if (item == nullptr)
             return ACResult::Failed;
 
-        cout << "\n";
+        std::cout << "\n";
 
         Core::Delete(inv, item);
 
-        cout << "Item \"" << item->meta.name << "\" with id " << item->item_id << " deleted successfully\n";
+        std::cout << "Item \"" << item->meta.name << "\" with id " << item->item_id << " deleted successfully\n";
 
         return ACResult::Ok;
     }
@@ -608,24 +608,24 @@ namespace Frontend
 
         if (item->item_count > 0)
         {
-            cout << "\n<*> Assigning item \"" << item->meta.name << "\"\n";
+            std::cout << "\n<*> Assigning item \"" << item->meta.name << "\"\n";
         }
         else
         {
-            cout << "\n[ERROR] * No units available for this item *" << '\n';
+            std::cerr << "\n[ERROR] * No units available for this item *" << '\n';
             return ACResult::Failed;
         }
 
         static std::string name;
-        cout << IDN << "Enter assignee's name: ";
+        std::cout << IDN << "Enter assignee's name: ";
         if (!Input::string(name))
             return ACResult::Failed;
 
-        cout << "\n";
+        std::cout << "\n";
 
         Core::Assign(item, name.c_str());
 
-        cout << "Item \"" << item->meta.name << "\" assigned to \"" << name << "\" successfully\n";
+        std::cout << "Item \"" << item->meta.name << "\" assigned to \"" << name << "\" successfully\n";
 
         return ACResult::Ok;
     }
@@ -636,23 +636,23 @@ namespace Frontend
 
         if (item->assigned_count == 0)
         {
-            cout << "\n* No units currently assigned to any member *" << '\n';
+            std::cout << "\n* No units currently assigned to any member *" << '\n';
             return ACResult::Ok;
         }
 
         auto mem_count = DisplayItem::Full(*item);
 
-        cout << IDN << "Select an entry: ";
+        std::cout << IDN << "Select an entry: ";
         auto location = Input::integer();
 
         if (location < 1 || location > mem_count)
         {
-            cout << "\n [ERROR] * Invalid choice *" << '\n';
+            std::cerr << "\n [ERROR] * Invalid choice *" << '\n';
             return ACResult::Failed;
         }
         --location;
 
-        cout << "\n";
+        std::cout << "\n";
 
         auto entry = item->allocated_to;
         for (int i = 0; i < location; ++i)
@@ -661,7 +661,7 @@ namespace Frontend
         /* TODO: check for unreachable case of entry->borrow_count == 0 */
         Core::Retrieve(item, entry);
 
-        cout << "Item \"" << item->meta.name << "\" retrieved successfully\n";
+        std::cout << "Item \"" << item->meta.name << "\" retrieved successfully\n";
 
         return ACResult::Ok;
     }
@@ -670,7 +670,7 @@ namespace Frontend
     {
         SELECT_ITEM(inv, item);
 
-        cout << "\n";
+        std::cout << "\n";
 
         DisplayItem::Full(*item);
 
