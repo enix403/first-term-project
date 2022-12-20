@@ -15,12 +15,12 @@ namespace Serialization
 {
     using namespace std;
 
-    static constexpr const char* MAIN_FILE_NAME = "inventory_data.bin";
+    static constexpr const char* MAIN_FILE_NAME = "inventory_data.rvms.bin";
 
     static constexpr uint8_t MAGIC_BYTES[16] = {
         0x49, 0x4E, 0x56, 0x4D, 0x47, 0x4D, 0x54, 0x53, //
-        0x59, 0x53, 0x54, 0x45, 0x4D, 0x41, 0x42, 0x43,
-    }; // hexdump of "INVMGMTSYSTEMABC"
+        0x59, 0x53, 0x54, 0x45, 0x4D, 0x52, 0x56, 0x4D, //
+    }; // hexdump of "INVMGMTSYSTEMRVM"
 
     using DataFile = fstream*;
 
