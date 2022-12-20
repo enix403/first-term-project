@@ -1,7 +1,6 @@
 #include <iostream>
 #include <sstream>
 #include <string>
-#include <cstring>
 #include <limits>
 #include <iomanip>
 
@@ -26,46 +25,8 @@ namespace Input
     InventoryItem* identitfied_item(Inventory& inv, bool show_error = true);
 }; // namespace Input
 
-
-namespace Frontend
-{
-    enum class MenuAction
-    {
-        Quit = 0,
-
-        AddItem,
-        ViewItems,
-        SearchItem,
-        EditItem,
-        DeleteItem,
-        AssignItem,
-        RetrieveItem,
-        ItemDetails,
-    };
-
-    enum class ACResult
-    {
-        Ok = 0,
-        Failed,
-        Unrecoverable
-    };
-
-    MenuAction RequestAction();
-    ACResult HandleAction(Inventory& inv, MenuAction action);
-
-    ACResult AddItem(Inventory& inv);
-    ACResult ViewItems(Inventory& inv);
-    ACResult SearchItem(Inventory& inv);
-    ACResult EditItem(Inventory& inv);
-    ACResult DeleteItem(Inventory& inv);
-    ACResult AssignItem(Inventory& inv);
-    ACResult RetrieveItem(Inventory& inv);
-    ACResult ItemDetails(Inventory& inv);
-}; // namespace Frontend
-
 namespace Core
 {
-
     static InventoryItem* FindItemById(const Inventory& inv, item_id_t id, bool active_only = true);
     static Member* FindMemberByName(Member* head, const char* name);
 
@@ -75,6 +36,39 @@ namespace Core
     static void Assign(Inventory& inv, item_id_t id, const char* name);
     static void Retrieve(InventoryItem* item, Member* entry);
 } // namespace Core
+
+namespace Frontend
+{
+    enum class NextTickStatus
+    {
+        Quit,
+        Continue
+    };
+
+    enum class InvActionResult
+    {
+        Ok = 0,
+        Failed,
+        Unrecoverable
+    };
+
+    struct TickInfo
+    {
+        InvActionResult result;
+        NextTickStatus next_tick_st;
+    };
+
+    TickInfo AppTick(Inventory& inv);
+
+    InvActionResult AddItem(Inventory& inv);
+    InvActionResult ViewItems(Inventory& inv);
+    InvActionResult SearchItem(Inventory& inv);
+    InvActionResult EditItem(Inventory& inv);
+    InvActionResult DeleteItem(Inventory& inv);
+    InvActionResult AssignItem(Inventory& inv);
+    InvActionResult RetrieveItem(Inventory& inv);
+    InvActionResult ItemDetails(Inventory& inv);
+}; // namespace Frontend
 
 int main()
 {
@@ -86,12 +80,12 @@ int main()
     Lifecycle::InitInventory(&inv);
 
 #if 0
-    Core::Add(inv, 1, 41, { "Test Item 1", IC_MACHINERY });
-    Core::Add(inv, 2, 41, { "Test Item 1", IC_MACHINERY });
-    Core::Add(inv, 3, 41, { "Test Item 1", IC_MACHINERY });
-    Core::Add(inv, 4, 41, { "Test Item 1", IC_MACHINERY });
-    Core::Add(inv, 5, 41, { "Test Item 1", IC_MACHINERY });
-    Core::Add(inv, 6, 41, { "Test Item 1", IC_MACHINERY });
+    Core::Add(inv, 1, 41, { "Test Item 1", "Category 1" });
+    Core::Add(inv, 2, 41, { "Test Item 2", "Category 2" });
+    Core::Add(inv, 3, 41, { "Test Item 3", "Category 3" });
+    Core::Add(inv, 4, 41, { "Test Item 4", "Category 4" });
+    Core::Add(inv, 5, 41, { "Test Item 5", "Category 5" });
+    Core::Add(inv, 6, 41, { "Test Item 6", "Category 6" });
 
     Core::Assign(inv, 3, "abc");
     Core::Assign(inv, 3, "def");
@@ -129,7 +123,7 @@ int main()
 
     bool first_tick = true;
 
-    for (;;)
+    while (!std::cin.eof())
     {
         using namespace Frontend;
 
@@ -141,14 +135,12 @@ int main()
 
         first_tick = false;
 
-        auto action = RequestAction();
+        auto tick = Frontend::AppTick(inv);
 
-        if (action == MenuAction::Quit)
-        {
+        if (tick.next_tick_st == Frontend::NextTickStatus::Quit)
             break;
-        }
 
-        if (HandleAction(inv, action) == ACResult::Ok)
+        if (tick.result == InvActionResult::Ok)
             Serialization::WriteToFile(file, inv);
     }
 
@@ -357,11 +349,13 @@ Select an option:
     [8] Show Details of a Specifc Item
 )";
 
-    MenuAction RequestAction()
+    using menu_option_t = int64_t;
+
+    static menu_option_t menu_input()
     {
         std::cout << g_menu << endl;
 
-        int op;
+        menu_option_t op;
 
         while (true)
         {
@@ -371,7 +365,7 @@ Select an option:
             op = Input::integer();
 
             if (std::cin.eof())
-                return MenuAction::Quit;
+                return 0;
 
             if (op >= 0 && op <= 8)
                 valid = true;
@@ -382,26 +376,31 @@ Select an option:
                 std::cerr << "[ERROR] * Invalid choice. Try again *" << endl;
         }
 
-        return static_cast<MenuAction>(op);
+        return op;
     }
 
-    ACResult HandleAction(Inventory& inv, MenuAction action)
+    TickInfo AppTick(Inventory& inv)
     {
-        std::cout << "\n";
+        auto op = menu_input();
 
-        ACResult result = ACResult::Failed;
+        if (op == 0)
+        {
+            return { .next_tick_st = NextTickStatus::Quit };
+        }
+
+        InvActionResult result = InvActionResult::Failed;
 
         // clang-format off
-        switch (action)
+        switch (op)
         {
-            case MenuAction::AddItem:      result = Frontend::AddItem(inv);      break;
-            case MenuAction::ViewItems:    result = Frontend::ViewItems(inv);    break;
-            case MenuAction::SearchItem:   result = Frontend::SearchItem(inv);   break;
-            case MenuAction::EditItem:     result = Frontend::EditItem(inv);     break;
-            case MenuAction::DeleteItem:   result = Frontend::DeleteItem(inv);   break;
-            case MenuAction::AssignItem:   result = Frontend::AssignItem(inv);   break;
-            case MenuAction::RetrieveItem: result = Frontend::RetrieveItem(inv); break;
-            case MenuAction::ItemDetails:  result = Frontend::ItemDetails(inv);  break;
+            case 1:     result = Frontend::AddItem(inv);      break;
+            case 2:     result = Frontend::ViewItems(inv);    break;
+            case 3:     result = Frontend::SearchItem(inv);   break;
+            case 4:     result = Frontend::EditItem(inv);     break;
+            case 5:     result = Frontend::DeleteItem(inv);   break;
+            case 6:     result = Frontend::AssignItem(inv);   break;
+            case 7:     result = Frontend::RetrieveItem(inv); break;
+            case 8:     result = Frontend::ItemDetails(inv);  break;
 
             default:
                 break;
@@ -410,7 +409,7 @@ Select an option:
 
         std::cout << endl;
 
-        return result;
+        return { .result = result, .next_tick_st = NextTickStatus::Continue };
     }
 
 } // namespace Frontend
@@ -419,7 +418,7 @@ namespace Frontend
 {
     static const char* IDN = " >> ";
 
-    ACResult AddItem(Inventory& inv)
+    InvActionResult AddItem(Inventory& inv)
     {
         item_id_t id;
         item_count_t icount;
@@ -432,7 +431,7 @@ namespace Frontend
             if (id_ == -1)
             {
                 std::cout << "\n[ERROR] * Invalid id *" << '\n';
-                return ACResult::Failed;
+                return InvActionResult::Failed;
             }
 
             id = id_;
@@ -442,20 +441,20 @@ namespace Frontend
                 std::cerr << "\n[ERROR] * Item with id " << id << " already exists. *\n"
                           << "        * Failed to add item *\n";
 
-                return ACResult::Failed;
+                return InvActionResult::Failed;
             }
         }
 
         {
             std::cout << IDN << "Enter Item name: ";
             if (!Input::string(meta.name))
-                return ACResult::Failed;
+                return InvActionResult::Failed;
         }
 
         {
             std::cout << IDN << "Enter Item Category: ";
             if (!Input::string(meta.cat))
-                return ACResult::Failed;
+                return InvActionResult::Failed;
         }
 
         {
@@ -465,7 +464,7 @@ namespace Frontend
             if (ic == -1)
             {
                 std::cerr << "\n[ERROR] * Invalid input *" << '\n';
-                return ACResult::Failed;
+                return InvActionResult::Failed;
             }
 
             icount = ic;
@@ -477,15 +476,15 @@ namespace Frontend
 
         std::cout << "Item \"" << meta.name << "\" added successfully\n";
 
-        return ACResult::Ok;
+        return InvActionResult::Ok;
     }
 
-    ACResult ViewItems(Inventory& inv)
+    InvActionResult ViewItems(Inventory& inv)
     {
         if (inv.count == 0)
         {
             std::cout << "*No items added*\n";
-            return ACResult::Failed;
+            return InvActionResult::Failed;
         }
 
         DisplayItem::Header();
@@ -500,16 +499,16 @@ namespace Frontend
             DisplayItem::Compact(item);
         }
 
-        return ACResult::Ok;
+        return InvActionResult::Ok;
     }
 
-    ACResult SearchItem(Inventory& inv)
+    InvActionResult SearchItem(Inventory& inv)
     {
         string str;
         {
             std::cout << IDN << "Enter Item name: ";
             if (!Input::string(str))
-                return ACResult::Failed;
+                return InvActionResult::Failed;
         }
 
         std::cout << "\n";
@@ -528,46 +527,46 @@ namespace Frontend
         if (count == 0)
         {
             std::cout << "*No items found*\n";
-            return ACResult::Failed;
+            return InvActionResult::Failed;
         }
 
-        return ACResult::Ok;
+        return InvActionResult::Ok;
     }
 
 // clang-format off
 #define SELECT_ITEM(inv, item) \
     { \
-        ACResult res; \
-        if ((res = ViewItems(inv)) != ACResult::Ok) \
+        InvActionResult res; \
+        if ((res = ViewItems(inv)) != InvActionResult::Ok) \
             return res; \
         std::cout << "\n"; \
     } \
     std::cout << IDN << "Enter Item Id: "; \
     auto item = Input::identitfied_item(inv); \
     if (item == nullptr) \
-        return ACResult::Failed;
+        return InvActionResult::Failed;
     // clang-format on
 
-    ACResult EditItem(Inventory& inv)
+    InvActionResult EditItem(Inventory& inv)
     {
         SELECT_ITEM(inv, item);
 
         std::cout << IDN << "Enter Item's new name (press enter to keep original): ";
         static std::string name;
         if (!Input::string(name, true))
-            return ACResult::Failed;
+            return InvActionResult::Failed;
 
         std::cout << IDN << "Enter Item's new category (press enter to keep original): ";
         static std::string cat;
         if (!Input::string(cat, true))
-            return ACResult::Failed;
+            return InvActionResult::Failed;
 
         std::cout << IDN << "Enter Item's available unit count (press enter to keep original): ";
         auto ic = Input::integer(true);
         if (ic == -1)
         {
             std::cerr << "\n[ERROR] * Invalid input *" << '\n';
-            return ACResult::Failed;
+            return InvActionResult::Failed;
         }
 
         std::cout << "\n";
@@ -583,15 +582,15 @@ namespace Frontend
 
         std::cout << "Item saved successfully\n";
 
-        return ACResult::Ok;
+        return InvActionResult::Ok;
     }
 
-    ACResult DeleteItem(Inventory& inv)
+    InvActionResult DeleteItem(Inventory& inv)
     {
         SELECT_ITEM(inv, item);
 
         if (item == nullptr)
-            return ACResult::Failed;
+            return InvActionResult::Failed;
 
         std::cout << "\n";
 
@@ -599,10 +598,10 @@ namespace Frontend
 
         std::cout << "Item \"" << item->meta.name << "\" with id " << item->item_id << " deleted successfully\n";
 
-        return ACResult::Ok;
+        return InvActionResult::Ok;
     }
 
-    ACResult AssignItem(Inventory& inv)
+    InvActionResult AssignItem(Inventory& inv)
     {
         SELECT_ITEM(inv, item);
 
@@ -613,13 +612,13 @@ namespace Frontend
         else
         {
             std::cerr << "\n[ERROR] * No units available for this item *" << '\n';
-            return ACResult::Failed;
+            return InvActionResult::Failed;
         }
 
         static std::string name;
         std::cout << IDN << "Enter assignee's name: ";
         if (!Input::string(name))
-            return ACResult::Failed;
+            return InvActionResult::Failed;
 
         std::cout << "\n";
 
@@ -627,17 +626,17 @@ namespace Frontend
 
         std::cout << "Item \"" << item->meta.name << "\" assigned to \"" << name << "\" successfully\n";
 
-        return ACResult::Ok;
+        return InvActionResult::Ok;
     }
 
-    ACResult RetrieveItem(Inventory& inv)
+    InvActionResult RetrieveItem(Inventory& inv)
     {
         SELECT_ITEM(inv, item);
 
         if (item->assigned_count == 0)
         {
             std::cout << "\n* No units currently assigned to any member *" << '\n';
-            return ACResult::Ok;
+            return InvActionResult::Ok;
         }
 
         auto mem_count = DisplayItem::Full(*item);
@@ -648,7 +647,7 @@ namespace Frontend
         if (location < 1 || location > mem_count)
         {
             std::cerr << "\n [ERROR] * Invalid choice *" << '\n';
-            return ACResult::Failed;
+            return InvActionResult::Failed;
         }
         --location;
 
@@ -663,10 +662,10 @@ namespace Frontend
 
         std::cout << "Item \"" << item->meta.name << "\" retrieved successfully\n";
 
-        return ACResult::Ok;
+        return InvActionResult::Ok;
     }
 
-    ACResult ItemDetails(Inventory& inv)
+    InvActionResult ItemDetails(Inventory& inv)
     {
         SELECT_ITEM(inv, item);
 
@@ -674,7 +673,7 @@ namespace Frontend
 
         DisplayItem::Full(*item);
 
-        return ACResult::Ok;
+        return InvActionResult::Ok;
     }
 }; // namespace Frontend
 
