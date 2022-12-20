@@ -23,8 +23,8 @@ struct ItemMeta
     std::string name;
     std::string cat;
 
-    ItemMeta& operator=(const ItemMeta& other) = default;
-    ItemMeta& operator=(ItemMeta&& other) = default;
+    ItemMeta& operator= (const ItemMeta& other) = default;
+    ItemMeta& operator= (ItemMeta&& other) = default;
 };
 
 struct InventoryItem
@@ -37,8 +37,8 @@ struct InventoryItem
 
     Member* allocated_to = nullptr;
 
-    InventoryItem& operator=(const InventoryItem& other) = default;
-    InventoryItem& operator=(InventoryItem&& other) = default;
+    InventoryItem& operator= (const InventoryItem& other) = default;
+    InventoryItem& operator= (InventoryItem&& other) = default;
 };
 
 struct Inventory

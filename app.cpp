@@ -17,13 +17,13 @@ namespace Lifecycle
 
     static void InitInventory(Inventory* inv);
     static void FreeInventory(Inventory* inv);
-};
+}; // namespace Lifecycle
 
 namespace Input
 {
-    bool                string(std::string& target, bool allow_empty = false);
-    int64_t             integer(bool allow_empty = false);
-    InventoryItem*      identitfied_item(Inventory& inv, bool show_error = true);
+    bool string(std::string& target, bool allow_empty = false);
+    int64_t integer(bool allow_empty = false);
+    InventoryItem* identitfied_item(Inventory& inv, bool show_error = true);
 }; // namespace Input
 
 
@@ -50,8 +50,8 @@ namespace Frontend
         Unrecoverable
     };
 
-    MenuAction  RequestAction();
-    ACResult    HandleAction(Inventory& inv, MenuAction action);
+    MenuAction RequestAction();
+    ACResult HandleAction(Inventory& inv, MenuAction action);
 
     ACResult AddItem(Inventory& inv);
     ACResult ViewItems(Inventory& inv);
@@ -63,17 +63,18 @@ namespace Frontend
     ACResult ItemDetails(Inventory& inv);
 }; // namespace Frontend
 
-namespace Core {
+namespace Core
+{
 
-    static InventoryItem*   FindItemById(const Inventory& inv, item_id_t id, bool active_only = true);
-    static Member*          FindMemberByName(Member* head, const char* name);
+    static InventoryItem* FindItemById(const Inventory& inv, item_id_t id, bool active_only = true);
+    static Member* FindMemberByName(Member* head, const char* name);
 
-    static void Add(Inventory& inv, item_id_t id, item_count_t icount, const ItemMeta& meta);   
+    static void Add(Inventory& inv, item_id_t id, item_count_t icount, const ItemMeta& meta);
     static void Delete(Inventory& inv, InventoryItem* item);
     static void Assign(InventoryItem* item, const char* name);
     static void Assign(Inventory& inv, item_id_t id, const char* name);
-    static void Retrieve(InventoryItem* item, Member* entry);  
-}
+    static void Retrieve(InventoryItem* item, Member* entry);
+} // namespace Core
 
 int main()
 {
@@ -117,7 +118,7 @@ int main()
         {
             if (!ReadFromFile(file, inv))
             {
-                cout << "[WARN] Invalid or corrupted file -- Skipping" << endl; \
+                cout << "[WARN] Invalid or corrupted file -- Skipping" << endl;
 
                 // Reset in case of failed read
                 Lifecycle::FreeInventory(&inv);
@@ -175,7 +176,7 @@ namespace Lifecycle
     {
         inv->count = 0;
         inv->capacity = 0;
-        inventory_allocate_capacity(*inv, 256);
+        inventory_allocate_capacity(*inv, 64);
     }
 
     void FreeInventory(Inventory* inv)
@@ -193,7 +194,7 @@ namespace Lifecycle
 
         delete[] inv->items;
     }
-};
+}; // namespace Lifecycle
 
 namespace Input
 {
@@ -270,7 +271,7 @@ namespace Input
 
 namespace DisplayItem
 {
-    static constexpr int w1 =  6;
+    static constexpr int w1 = 6;
     static constexpr int w2 = 16;
     static constexpr int w3 = 18;
     static constexpr int w4 = 18;
@@ -278,6 +279,7 @@ namespace DisplayItem
 
     static inline void Header()
     {
+        // clang-format off
         cout
             << std::setw(w1) << std::left << "ID"
             << std::setw(w2) << std::left << "Name"
@@ -289,10 +291,12 @@ namespace DisplayItem
         cout
             << std::setw(w1 + w2 + w3 + w4 + w5)
             << std::setfill('-') << "" << "\n" << std::setfill(' ');
+        // clang-format on
     }
 
     static inline void Summary(InventoryItem& item)
     {
+        // clang-format off
         cout
             << std::setw(w1) << std::left << item.item_id
             << std::setw(w2) << std::left << item.meta.name
@@ -300,6 +304,7 @@ namespace DisplayItem
             << std::setw(w4) << std::left << item.item_count
             << std::setw(w5) << std::left << item.assigned_count
             << "\n";
+        // clang-format on
     }
 
     static inline uint32_t MemList(InventoryItem& item)
@@ -311,10 +316,12 @@ namespace DisplayItem
             cout << "\nAssigned To: \n";
             while (mem != nullptr)
             {
+                // clang-format off
                 cout
                     << "   > " << ++i << ". "
                     << mem->name << " | "
-                    << mem->borrow_count << " unit(s) assigned" << "\n"; 
+                    << mem->borrow_count << " unit(s) assigned" << "\n";
+                // clang-format on
                 mem = mem->next;
             }
         }
@@ -333,11 +340,11 @@ namespace DisplayItem
     {
         Summary(item);
     }
-};
+}; // namespace DisplayItem
 
 namespace Frontend
 {
-    static const char* menu_ = 1 + (const char*) R"(
+    static const char* g_menu = 1 + (const char*) R"(
 Select an option:
     [0] Quit 
     [1] Add a New tem
@@ -352,7 +359,7 @@ Select an option:
 
     MenuAction RequestAction()
     {
-        cout << menu_ << endl;
+        cout << g_menu << endl;
 
         int op;
 
@@ -384,6 +391,7 @@ Select an option:
 
         ACResult result = ACResult::Failed;
 
+        // clang-format off
         switch (action)
         {
             case MenuAction::AddItem:      result = Frontend::AddItem(inv);      break;
@@ -398,6 +406,7 @@ Select an option:
             default:
                 break;
         }
+        // clang-format on
 
         cout << endl;
 
@@ -462,8 +471,6 @@ namespace Frontend
             icount = ic;
         }
 
-        // meta.cat = IC_MACHINERY;
-
         cout << "\n";
 
         Core::Add(inv, id, icount, meta);
@@ -527,6 +534,7 @@ namespace Frontend
         return ACResult::Ok;
     }
 
+// clang-format off
 #define SELECT_ITEM(inv, item) \
     { \
         ACResult res; \
@@ -537,7 +545,8 @@ namespace Frontend
     cout << IDN << "Enter Item Id: "; \
     auto item = Input::identitfied_item(inv); \
     if (item == nullptr) \
-        return ACResult::Failed; \
+        return ACResult::Failed;
+    // clang-format on
 
     ACResult EditItem(Inventory& inv)
     {
@@ -562,8 +571,6 @@ namespace Frontend
         }
 
         cout << "\n";
-
-        // item->meta.cat = IC_MACHINERY; // Edited
 
         if (ic != -2)
             item->item_count = ic;
@@ -618,9 +625,7 @@ namespace Frontend
 
         Core::Assign(item, name.c_str());
 
-        cout
-            << "Item \"" << item->meta.name
-            << "\" assigned to \"" << name << "\" successfully\n";
+        cout << "Item \"" << item->meta.name << "\" assigned to \"" << name << "\" successfully\n";
 
         return ACResult::Ok;
     }
@@ -656,8 +661,7 @@ namespace Frontend
         /* TODO: check for unreachable case of entry->borrow_count == 0 */
         Core::Retrieve(item, entry);
 
-        cout
-            << "Item \"" << item->meta.name << "\" retrieved successfully\n";
+        cout << "Item \"" << item->meta.name << "\" retrieved successfully\n";
 
         return ACResult::Ok;
     }
@@ -672,9 +676,10 @@ namespace Frontend
 
         return ACResult::Ok;
     }
-}; // namespace Core
+}; // namespace Frontend
 
-namespace Core {
+namespace Core
+{
 
     InventoryItem* FindItemById(const Inventory& inv, item_id_t id, bool active_only)
     {
@@ -760,8 +765,7 @@ namespace Core {
             auto first = entry->prev;
             auto second = entry->next;
 
-            Member** head = first == nullptr ?
-                &item->allocated_to : &first->next;
+            Member** head = first == nullptr ? &item->allocated_to : &first->next;
 
             *head = second;
 
@@ -774,4 +778,4 @@ namespace Core {
         ++item->item_count;
         --item->assigned_count;
     }
-}
+} // namespace Core

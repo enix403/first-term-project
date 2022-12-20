@@ -133,7 +133,6 @@ namespace Serialization
     {
         auto& fout = *f;
         write_bytes(fout, item.item_id);
-        // write_bytes(fout, item.meta);
 
         /* Meta */
         {
@@ -155,7 +154,7 @@ namespace Serialization
         write_bytes(fout, mem->borrow_count);
     }
 
-    template <typename = void> /* Just to silence warning */
+    template<typename = void> /* Just to silence warning */
     void WriteMembers(DataFile f, const InventoryItem& item)
     {
         auto count_pos = f->tellp();
@@ -234,7 +233,6 @@ namespace Serialization
         auto& fin = *f;
 
         res &= read_bytes(fin, item.item_id);
-        // res &= read_bytes(fin, item.meta);
 
         /* Meta */
         {
@@ -325,7 +323,6 @@ namespace Serialization
                 if (!ReadMembers(f, inv.items[i]))
                     return false;
         }
-
 
         inv.count = count;
 
