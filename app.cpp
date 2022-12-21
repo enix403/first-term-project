@@ -31,7 +31,7 @@ namespace Core
     static Member* FindMemberByName(Member* head, const char* name);
 
     static void Add(Inventory& inv, item_id_t id, item_count_t icount, const ItemMeta& meta);
-    static void Delete(Inventory& inv, InventoryItem* item);
+    static void Delete(InventoryItem* item);
     static void Assign(InventoryItem* item, const char* name);
     static void Assign(Inventory& inv, item_id_t id, const char* name);
     static void Retrieve(InventoryItem* item, Member* entry);
@@ -589,15 +589,11 @@ namespace Frontend
     {
         SELECT_ITEM(inv, item);
 
-        if (item == nullptr)
-            return InvActionResult::Failed;
-
         std::cout << "\n";
 
-        Core::Delete(inv, item);
+        Core::Delete(item);
 
         std::cout << "Item \"" << item->meta.name << "\" with id " << item->item_id << " deleted successfully\n";
-
         return InvActionResult::Ok;
     }
 
@@ -720,7 +716,7 @@ namespace Core
         slot.allocated_to = nullptr;
     }
 
-    static inline void Delete(Inventory& inv, InventoryItem* item)
+    static inline void Delete(InventoryItem* item)
     {
         item->active = false;
     }
